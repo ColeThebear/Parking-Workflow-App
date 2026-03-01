@@ -1,0 +1,40 @@
+
+services:
+  backend:
+    build: ./backend
+    container_name: suny_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=postgresql://postgres:HondaB20Vtec%21%40%23@db:5432/suny_dev
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    container_name: suny_frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    stdin_open: true
+    tty: true
+
+  db:
+    image: postgres:14
+    container_name: suny_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: HondaB20Vtec!@#
+      POSTGRES_DB: suny_dev
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5

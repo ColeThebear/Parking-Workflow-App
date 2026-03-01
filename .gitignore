@@ -1,0 +1,28 @@
+# --- System / IDE Files ---
+.DS_Store
+Thumbs.db
+*.log
+
+# --- Python / Backend ---
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+env/
+instance/
+
+# --- Node / Frontend ---
+node_modules/
+frontend/node_modules/
+frontend/dist/
+.eslintcache
+
+# --- Secrets & Config ---
+.env
+.env.dev
+.env.local
+.env.*.local
+
+# --- Docker ---
+.docker/
