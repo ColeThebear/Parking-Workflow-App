@@ -1,9 +1,18 @@
-fastapi
-uvicorn
-sqlalchemy
-psycopg2-binary
-python-jose
-passlib[bcrypt]
-pydantic-settings
-python-dotenv
-email-validator
+# ── Web framework ─────────────────────────────────────────────
+fastapi>=0.100.0          # 0.100+ required for pydantic v2 support
+uvicorn[standard]>=0.20.0 # [standard] adds httptools + websockets
+
+# ── Database ──────────────────────────────────────────────────
+sqlalchemy>=2.0.0         # 2.x ORM — used for declarative models
+psycopg2-binary>=2.9.0    # PostgreSQL sync driver
+
+# ── Auth & security ───────────────────────────────────────────
+python-jose[cryptography]>=3.3.0  # [cryptography] backend required for
+                                   # production-grade JWT signing/verification
+passlib[argon2]>=1.7.4             # argon2-cffi installed as transitive dep
+
+# ── Config & validation ───────────────────────────────────────
+pydantic>=2.0.0            # v2 required — code uses ConfigDict, model_config
+pydantic-settings>=2.0.0   # BaseSettings + .env loading (includes python-dotenv)
+email-validator>=2.0.0     # Required for pydantic EmailStr validation
+python-multipart>=0.0.9    # Required for FastAPI file upload (UploadFile / Form)

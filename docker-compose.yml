@@ -8,7 +8,9 @@ services:
     volumes:
       - ./backend:/app
     environment:
-      - DATABASE_URL=postgresql://postgres:HondaB20Vtec%21%40%23@db:5432/suny_dev
+      - DATABASE_URL=postgresql+psycopg2://postgres:${DB_PASSWORD}@db:5432/suny_dev
+      - SECRET_KEY=${SECRET_KEY}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-1440}
     depends_on:
       db:
         condition: service_healthy
@@ -17,10 +19,12 @@ services:
     build: ./frontend
     container_name: suny_frontend
     ports:
-      - "5173:5173"
+      - "5178:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules
+    environment:
+      - VITE_BACKEND_URL=http://backend:8000
     stdin_open: true
     tty: true
 
@@ -29,12 +33,17 @@ services:
     container_name: suny_db
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: HondaB20Vtec!@#
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: suny_dev
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
+
+volumes:
+  postgres_data:

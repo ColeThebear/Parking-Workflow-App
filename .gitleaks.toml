@@ -1,0 +1,9 @@
+# Gitleaks configuration
+# Allowlist example/template files that intentionally contain placeholder patterns
+
+[allowlist]
+description = "Allow placeholder values in example environment files"
+paths = [
+    "example.env",
+    "example.env.production",
+]

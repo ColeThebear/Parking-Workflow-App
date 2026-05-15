@@ -1,0 +1,38 @@
+{
+  "users": [
+    { "email": "student1@suny.edu", "role": "PARKER" },
+    { "email": "student2@suny.edu", "role": "PARKER" },
+    { "email": "officer1@suny.edu", "role": "ENFORCEMENT" },
+    { "email": "operator@suny.edu", "role": "OPERATOR" }
+  ],
+  "parking_sessions": [
+    {
+      "vehicle_plate": "ABC123",
+      "zone": "Student Lot A",
+      "active": true,
+      "started_at": "2026-02-09T10:00:00Z",
+      "ended_at": null
+    },
+    {
+      "vehicle_plate": "SUNY456",
+      "zone": "Student Lot B",
+      "active": true,
+      "started_at": "2026-02-09T10:15:00Z",
+      "ended_at": null
+    },
+    {
+      "vehicle_plate": "PARK789",
+      "zone": "Faculty Lot",
+      "active": false,
+      "started_at": "2026-02-08T14:00:00Z",
+      "ended_at": "2026-02-08T15:00:00Z"
+    },
+    {
+      "vehicle_plate": "NYS102",
+      "zone": "Visitor Lot",
+      "active": false,
+      "started_at": "2026-02-08T09:00:00Z",
+      "ended_at": "2026-02-08T10:00:00Z"
+    }
+  ]
+}

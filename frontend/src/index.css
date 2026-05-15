@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --suny-blue:       #0057B8;
+  --suny-blue-dark:  #003B71;
+  --suny-green:      #059669;
+  --suny-red:        #DC2626;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

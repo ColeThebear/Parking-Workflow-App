@@ -1,0 +1,65 @@
+# Root-level .dockerignore
+# Prevents secrets, dev artifacts, and large directories from entering Docker build context
+
+# Secrets & environment files
+.env
+.env.*
+!example.env
+!example.env.production
+
+# Version control
+.git/
+.gitmodules
+
+# Python artifacts
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+env/
+
+# Node artifacts
+node_modules/
+frontend/node_modules/
+npm-debug.log*
+
+# Build outputs
+dist/
+build/
+frontend/dist/
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+backend/tests/
+backend/.pytest_cache/
+
+# Database & data files
+pgdata/
+postgres-data/
+docker-data/
+*.sqlite3
+*.sql
+
+# Logs
+*.log
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Documentation (not needed in container)
+docs/
+README.md
+SECURITY.md
+LICENSE
+
+# Sensitive CSV imports
+*_students.csv
+*_guests.csv
+*_import.csv

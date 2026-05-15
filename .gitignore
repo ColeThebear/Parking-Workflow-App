@@ -26,3 +26,49 @@ frontend/dist/
 
 # --- Docker ---
 .docker/
+
+# --- Docker Volumes ---
+pgdata/
+postgres-data/
+docker-data/
+docker-volumes/
+
+# --- Database ---
+*.sqlite3
+
+# --- Testing ---
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# --- Build Artifacts ---
+dist/
+build/
+*.egg-info/
+
+# --- Sensitive CSV Imports ---
+*_students.csv
+*_guests.csv
+*_import.csv
+
+# --- IDE & Editor ---
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# --- Claude Code workspace ---
+.claude/
+
+# --- Debug & Lock ---
+debug.log
+requirements.lock
+
+# --- Test config with local DB credentials (use *.example.* versions as templates) ---
+backend/tests/conftest.py
+backend/tests/pytest.ini
+backend/conftest.py
+backend/pytest.ini

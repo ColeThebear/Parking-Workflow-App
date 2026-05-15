@@ -1,38 +1,178 @@
-from fastapi import FastAPI
-from contextlib import asynccontextmanager
+import logging
 import time
-from .database import Base, engine
-from .models import user, parking
-from .routers import auth, parking as parking_router
+from contextlib import asynccontextmanager
 
-# Initialize database with retries
-def init_db_with_retries(max_retries=5, delay=2):
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from .database import Base, engine
+from .models import user, parking, enforcement, vehicle, token, guest   # registers all models
+from .routers import auth, parking as parking_router, enforcement as enforcement_router, operator, admin, guest as guest_router
+
+logger = logging.getLogger(__name__)
+
+
+def init_db_with_retries(max_retries: int = 5, delay: int = 2) -> None:
+    """Create all tables, retrying if the DB isn't ready yet."""
     for attempt in range(max_retries):
         try:
             Base.metadata.create_all(bind=engine)
-            print("Database tables created successfully")
+            logger.info("Database tables created/verified.")
             return
-        except Exception as e:
+        except Exception:
             if attempt < max_retries - 1:
-                print(f"Database connection failed (attempt {attempt + 1}/{max_retries}), retrying in {delay}s...")
+                logger.warning("DB not ready (attempt %d/%d), retrying in %ds…",
+                               attempt + 1, max_retries, delay)
                 time.sleep(delay)
             else:
-                print(f"Failed to initialize database after {max_retries} attempts: {e}")
+                logger.error("Failed to connect to database after %d attempts.", max_retries)
                 raise
+
+
+def migrate_columns() -> None:
+    """Idempotent column migrations — safe to run on every startup."""
+    from sqlalchemy import text
+
+    # ALTER TYPE … ADD VALUE cannot run inside a transaction in PostgreSQL.
+    # Execute these with AUTOCOMMIT isolation before the regular migrations.
+    enum_stmts = [
+        "ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'ADMIN'",
+        "ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'GUEST'",
+    ]
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+        for stmt in enum_stmts:
+            conn.execute(text(stmt))
+
+    # Regular DDL — safe inside a transaction
+    column_stmts = [
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS terminated_by_operator BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_permission VARCHAR",
+        "ALTER TABLE parking_sessions ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ",
+    ]
+    with engine.connect() as conn:
+        for stmt in column_stmts:
+            conn.execute(text(stmt))
+        conn.commit()
+    logger.info("Column migrations applied.")
+
+
+def seed_default_users() -> None:
+    """
+    Seed demo accounts only when the users table is empty.
+
+    Demo credentials (all passwords: Test123!):
+        Admin accounts:
+            admin@suny.edu          — ADMIN  (full_admin)
+            citadmin@suny.edu       — ADMIN  (citations_admin)
+
+        Student accounts (PARKER):
+            jsmith@suny.edu         plate: ABC1234
+            mjones@suny.edu         plate: XYZ5678
+            abrown@suny.edu         plate: LMN3344
+            tdavis@suny.edu         plate: QPR7890
+            kwilson@suny.edu        plate: HJK2211
+            lmartinez@suny.edu      plate: EFG4455
+            rtaylor@suny.edu        plate: UVW6677
+            shanks@suny.edu         plate: BCD8899
+            panderson@suny.edu      plate: NOP1122
+            ctaylor@suny.edu        plate: STU3366
+
+        Other roles:
+            officer1@suny.edu       — ENFORCEMENT
+            operator@suny.edu       — OPERATOR
+    """
+    from .database import SessionLocal
+    from .models.user import User, UserRole
+    from .models.token import TokenBalance
+    from .models.vehicle import RegisteredVehicle
+    from .utils.security import hash_password
+
+    db = SessionLocal()
+    try:
+        if db.query(User).count() > 0:
+            return
+
+        logger.info("Seeding default demo users…")
+
+        pw = hash_password("Test123!")
+
+        accounts = [
+            # Admins
+            {"email": "admin@suny.edu",      "name": "System Administrator", "role": UserRole.ADMIN,       "admin_permission": "full_admin",       "plate": None},
+            {"email": "citadmin@suny.edu",   "name": "Citations Manager",    "role": UserRole.ADMIN,       "admin_permission": "citations_admin",  "plate": None},
+            # Officers / Operators
+            {"email": "officer1@suny.edu",   "name": "Officer Rivera",       "role": UserRole.ENFORCEMENT, "admin_permission": None, "plate": None},
+            {"email": "operator@suny.edu",   "name": "Lot Operator",         "role": UserRole.OPERATOR,    "admin_permission": None, "plate": None},
+            # Students
+            {"email": "jsmith@suny.edu",     "name": "James Smith",          "role": UserRole.PARKER,      "admin_permission": None, "plate": "ABC1234"},
+            {"email": "mjones@suny.edu",     "name": "Maria Jones",          "role": UserRole.PARKER,      "admin_permission": None, "plate": "XYZ5678"},
+            {"email": "abrown@suny.edu",     "name": "Alex Brown",           "role": UserRole.PARKER,      "admin_permission": None, "plate": "LMN3344"},
+            {"email": "tdavis@suny.edu",     "name": "Taylor Davis",         "role": UserRole.PARKER,      "admin_permission": None, "plate": "QPR7890"},
+            {"email": "kwilson@suny.edu",    "name": "Kai Wilson",           "role": UserRole.PARKER,      "admin_permission": None, "plate": "HJK2211"},
+            {"email": "lmartinez@suny.edu",  "name": "Laura Martinez",       "role": UserRole.PARKER,      "admin_permission": None, "plate": "EFG4455"},
+            {"email": "rtaylor@suny.edu",    "name": "Ryan Taylor",          "role": UserRole.PARKER,      "admin_permission": None, "plate": "UVW6677"},
+            {"email": "shanks@suny.edu",     "name": "Sam Hanks",            "role": UserRole.PARKER,      "admin_permission": None, "plate": "BCD8899"},
+            {"email": "panderson@suny.edu",  "name": "Pat Anderson",         "role": UserRole.PARKER,      "admin_permission": None, "plate": "NOP1122"},
+            {"email": "ctaylor@suny.edu",    "name": "Casey Taylor",         "role": UserRole.PARKER,      "admin_permission": None, "plate": "STU3366"},
+        ]
+
+        for acct in accounts:
+            new_user = User(
+                email=acct["email"],
+                name=acct["name"],
+                password_hash=pw,
+                role=acct["role"],
+                admin_permission=acct["admin_permission"],
+            )
+            db.add(new_user)
+            db.flush()
+
+            if acct["role"] == UserRole.PARKER:
+                db.add(TokenBalance(user_id=new_user.id, balance=0))
+                if acct["plate"]:
+                    db.add(RegisteredVehicle(user_id=new_user.id, plate=acct["plate"]))
+
+        db.commit()
+        logger.info("Seeded %d demo users.", len(accounts))
+    finally:
+        db.close()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     init_db_with_retries()
+    migrate_columns()
+    seed_default_users()
     yield
-    # Shutdown
-    pass
 
-app = FastAPI(title="SUNY Parking Dev API", lifespan=lifespan)
+
+app = FastAPI(title="SUNY Parking API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5178",
+        "http://localhost:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(auth.router)
 app.include_router(parking_router.router)
+app.include_router(enforcement_router.router)
+app.include_router(operator.router)
+app.include_router(admin.router)
+app.include_router(guest_router.router)
 
-@app.get("/")
+
+@app.get("/", tags=["health"])
 def root():
-    return {"message": "SUNY Parking Dev API running"}
+    return {"message": "SUNY Parking API running"}
+
+
+@app.get("/health", tags=["health"])
+def health():
+    return {"status": "ok"}

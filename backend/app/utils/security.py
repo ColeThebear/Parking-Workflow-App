@@ -1,16 +1,34 @@
-from passlib.context import CryptContext
+from datetime import datetime, timedelta, timezone
+
 from jose import jwt
-from datetime import datetime, timedelta
-from ..config import settings
+from passlib.context import CryptContext
 
-pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
+from ..config import get_settings
 
-def hash_password(pw: str):
-    return pwd.hash(pw)
+settings = get_settings()
 
-def verify_password(pw: str, hashed: str):
-    return pwd.verify(pw, hashed)
+# argon2 is used intentionally — it has no 72-byte input limit (unlike bcrypt).
+# Requires: passlib[argon2] and argon2-cffi in requirements.txt
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
-def create_token(user_id: int):
-    payload = {"sub": str(user_id), "exp": datetime.utcnow() + timedelta(hours=12)}
-    return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+# Kept as an alias — referenced by legacy seed scripts.
+# Prefer hash_password() in new code.
+get_password_hash = hash_password
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def create_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + (
+        expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
