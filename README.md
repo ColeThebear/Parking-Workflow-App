@@ -1,4 +1,4 @@
-# SUNY Parking Workflow App
+# Parking Workflow App
 
 A role-based parking management system for Campuses, Shopping malls or any paid for parking areas. Built with a security-first architecture using FastAPI, React, PostgreSQL, and Docker.
 
