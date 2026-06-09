@@ -222,7 +222,7 @@ python -c "import secrets; print(secrets.token_hex(32))"
 For local (non-Docker) backend development, create `backend/.env`:
 
 ```
-DATABASE_URL=postgresql+psycopg2://user:password@localhost:5432/dbname
+DATABASE_URL=postgresql+psycopg2://user:${DB_PASSWORD}@localhost:5432/dbname
 SECRET_KEY=<your-generated-key>
 ACCESS_TOKEN_EXPIRE_MINUTES=60
 ```
