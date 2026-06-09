@@ -72,7 +72,7 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-700 mb-4">
             <span className="text-white text-2xl font-bold">P</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">SUNY Parking</h1>
+          <h1 className="text-2xl font-bold text-gray-900">A&amp;C Parking</h1>
           <p className="text-sm text-gray-500 mt-1">
             Sign in to manage parking, enforcement, or operations.
           </p>

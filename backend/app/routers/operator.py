@@ -1,6 +1,6 @@
 import csv
 import io
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from pydantic import BaseModel
@@ -10,7 +10,7 @@ from typing import Optional
 
 from ..database import get_db
 from ..models.enforcement import EnforcementCheck, Citation
-from ..models.parking import ParkingSession
+from ..models.parking import ParkingSession, HistoricParkingSession
 from ..models.token import TokenBalance
 from ..models.user import User, UserRole
 from ..models.vehicle import RegisteredVehicle
@@ -19,9 +19,17 @@ from ..schemas.parking import (
     StudentSearchResult,
     EndSessionRequest,
     EndSessionResponse,
+    HistoricSessionOut,
+    HistoricImportRow,
+    HistoricImportResult,
 )
 from ..utils.dependencies import require_operator
 from ..utils.security import hash_password
+
+VALID_USER_TYPES        = {"STUDENT", "GUEST", "UNREGISTERED"}
+VALID_SESSION_TYPES     = {"STANDARD", "PERMIT", "EVENT"}
+VALID_PAYMENT_TYPES     = {"TOKEN", "CASH", "CARD", "FREE"}
+VALID_ENFORCEMENT_STATS = {"NONE", "CHECKED", "CITED"}
 
 router = APIRouter(prefix="/operator", tags=["operator"])
 
@@ -390,3 +398,270 @@ async def import_students(
                                     reason=f"Database error: {exc}"))
 
     return ImportResult(added=added, duplicates=duplicates, errors=errors)
+
+
+# ── Historic sessions ─────────────────────────────────────────────────────────
+
+@router.get("/historic-sessions", response_model=list[HistoricSessionOut])
+def get_historic_sessions(
+    date_from:          Optional[str] = Query(None, description="YYYY-MM-DD"),
+    date_to:            Optional[str] = Query(None, description="YYYY-MM-DD"),
+    plate:              Optional[str] = Query(None),
+    user_type:          Optional[str] = Query(None),
+    zone:               Optional[str] = Query(None),
+    session_type:       Optional[str] = Query(None),
+    payment_type:       Optional[str] = Query(None),
+    enforcement_status: Optional[str] = Query(None),
+    duration_min:       Optional[int] = Query(None, ge=0),
+    duration_max:       Optional[int] = Query(None, ge=0),
+    limit:              int           = Query(200, ge=1, le=1000),
+    offset:             int           = Query(0, ge=0),
+    _: User = Depends(require_operator),
+    db: Session = Depends(get_db),
+):
+    q = db.query(HistoricParkingSession)
+
+    if date_from:
+        try:
+            q = q.filter(HistoricParkingSession.started_at >= datetime.fromisoformat(date_from))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="date_from must be YYYY-MM-DD")
+    if date_to:
+        try:
+            end = datetime.fromisoformat(date_to) + timedelta(days=1)
+            q = q.filter(HistoricParkingSession.started_at < end)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="date_to must be YYYY-MM-DD")
+    if plate:
+        q = q.filter(HistoricParkingSession.vehicle_plate.ilike(f"%{plate.upper()}%"))
+    if user_type:
+        q = q.filter(HistoricParkingSession.user_type == user_type.upper())
+    if zone:
+        q = q.filter(HistoricParkingSession.zone == zone)
+    if session_type:
+        q = q.filter(HistoricParkingSession.session_type == session_type.upper())
+    if payment_type:
+        q = q.filter(HistoricParkingSession.payment_type == payment_type.upper())
+    if enforcement_status:
+        q = q.filter(HistoricParkingSession.enforcement_status == enforcement_status.upper())
+    if duration_min is not None:
+        q = q.filter(HistoricParkingSession.duration_minutes >= duration_min)
+    if duration_max is not None:
+        q = q.filter(HistoricParkingSession.duration_minutes <= duration_max)
+
+    total = q.count()
+    rows = q.order_by(HistoricParkingSession.started_at.desc()).offset(offset).limit(limit).all()
+    return rows
+
+
+# ── Historic CSV import ───────────────────────────────────────────────────────
+
+@router.post("/import-historic", response_model=HistoricImportResult)
+async def import_historic_sessions(
+    file: UploadFile = File(...),
+    _: User = Depends(require_operator),
+    db: Session = Depends(get_db),
+):
+    """
+    Import historic parking session data from CSV.
+
+    Required columns: plate, zone, started_at (YYYY-MM-DD HH:MM or ISO)
+    Optional columns: ended_at, user_type, session_type, payment_type,
+                      enforcement_status, notes
+
+    Duplicate detection: same plate + started_at is skipped.
+    """
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only CSV files are accepted.")
+
+    content = await file.read()
+    try:
+        text = content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="File must be UTF-8 encoded.")
+
+    reader = csv.DictReader(io.StringIO(text))
+    if reader.fieldnames is None:
+        raise HTTPException(status_code=400, detail="CSV has no headers.")
+
+    lower_fields = [f.strip().lower() for f in reader.fieldnames]
+    for required in ("plate", "zone", "started_at"):
+        if required not in lower_fields:
+            raise HTTPException(
+                status_code=400, detail=f"CSV must have a '{required}' column."
+            )
+
+    def field(row: dict, name: str) -> str:
+        for k, v in row.items():
+            if k.strip().lower() == name:
+                return (v or "").strip()
+        return ""
+
+    def parse_dt(raw: str) -> Optional[datetime]:
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M"):
+            try:
+                return datetime.strptime(raw, fmt).replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+        return None
+
+    added      = 0
+    duplicates: list[HistoricImportRow] = []
+    errors:     list[HistoricImportRow] = []
+
+    for row_num, row in enumerate(reader, start=2):
+        plate      = field(row, "plate").upper()
+        zone       = field(row, "zone")
+        started_raw = field(row, "started_at")
+
+        if not plate:
+            errors.append(HistoricImportRow(row=row_num, plate=plate, started_at=started_raw, reason="plate is required"))
+            continue
+        if not zone:
+            errors.append(HistoricImportRow(row=row_num, plate=plate, started_at=started_raw, reason="zone is required"))
+            continue
+        if not started_raw:
+            errors.append(HistoricImportRow(row=row_num, plate=plate, started_at=started_raw, reason="started_at is required"))
+            continue
+
+        started_at = parse_dt(started_raw)
+        if not started_at:
+            errors.append(HistoricImportRow(row=row_num, plate=plate, started_at=started_raw,
+                                            reason="started_at must be YYYY-MM-DD HH:MM"))
+            continue
+
+        ended_raw = field(row, "ended_at")
+        ended_at  = parse_dt(ended_raw) if ended_raw else None
+
+        duration_minutes: Optional[int] = None
+        if started_at and ended_at:
+            duration_minutes = max(0, int((ended_at - started_at).total_seconds() / 60))
+
+        raw_user_type  = field(row, "user_type").upper()  or "STUDENT"
+        raw_sess_type  = field(row, "session_type").upper() or "STANDARD"
+        raw_pay_type   = field(row, "payment_type").upper() or "FREE"
+        raw_enf_status = field(row, "enforcement_status").upper() or "NONE"
+
+        if raw_user_type not in VALID_USER_TYPES:
+            errors.append(HistoricImportRow(row=row_num, plate=plate, started_at=started_raw,
+                                            reason=f"user_type '{raw_user_type}' invalid. Use: {', '.join(VALID_USER_TYPES)}"))
+            continue
+        if raw_sess_type not in VALID_SESSION_TYPES:
+            errors.append(HistoricImportRow(row=row_num, plate=plate, started_at=started_raw,
+                                            reason=f"session_type '{raw_sess_type}' invalid. Use: {', '.join(VALID_SESSION_TYPES)}"))
+            continue
+        if raw_pay_type not in VALID_PAYMENT_TYPES:
+            errors.append(HistoricImportRow(row=row_num, plate=plate, started_at=started_raw,
+                                            reason=f"payment_type '{raw_pay_type}' invalid. Use: {', '.join(VALID_PAYMENT_TYPES)}"))
+            continue
+        if raw_enf_status not in VALID_ENFORCEMENT_STATS:
+            errors.append(HistoricImportRow(row=row_num, plate=plate, started_at=started_raw,
+                                            reason=f"enforcement_status '{raw_enf_status}' invalid. Use: {', '.join(VALID_ENFORCEMENT_STATS)}"))
+            continue
+
+        # Duplicate check: same plate + started_at
+        existing = db.query(HistoricParkingSession).filter(
+            HistoricParkingSession.vehicle_plate == plate,
+            HistoricParkingSession.started_at    == started_at,
+        ).first()
+        if existing:
+            duplicates.append(HistoricImportRow(row=row_num, plate=plate, started_at=started_raw,
+                                                reason="Duplicate: same plate and start time already imported"))
+            continue
+
+        try:
+            db.add(HistoricParkingSession(
+                vehicle_plate      = plate,
+                zone               = zone,
+                started_at         = started_at,
+                ended_at           = ended_at,
+                duration_minutes   = duration_minutes,
+                user_type          = raw_user_type,
+                session_type       = raw_sess_type,
+                payment_type       = raw_pay_type,
+                enforcement_status = raw_enf_status,
+                notes              = field(row, "notes") or None,
+            ))
+            db.commit()
+            added += 1
+        except Exception as exc:
+            db.rollback()
+            errors.append(HistoricImportRow(row=row_num, plate=plate, started_at=started_raw,
+                                            reason=f"Database error: {exc}"))
+
+    return HistoricImportResult(added=added, duplicates=duplicates, errors=errors)
+
+
+# ── Chart data ────────────────────────────────────────────────────────────────
+
+@router.get("/chart-data")
+def get_chart_data(
+    _: User = Depends(require_operator),
+    db: Session = Depends(get_db),
+):
+    """Aggregated data for Plotly charts on the operator dashboard."""
+    today        = datetime.now(timezone.utc).date()
+    thirty_ago   = today - timedelta(days=29)
+
+    # Sessions per day — live table (last 30 days)
+    live_by_day = (
+        db.query(func.date(ParkingSession.started_at).label("d"), func.count().label("n"))
+        .filter(func.date(ParkingSession.started_at) >= thirty_ago)
+        .group_by(func.date(ParkingSession.started_at))
+        .all()
+    )
+
+    # Sessions per day — historic table (last 30 days)
+    hist_by_day = (
+        db.query(func.date(HistoricParkingSession.started_at).label("d"), func.count().label("n"))
+        .filter(func.date(HistoricParkingSession.started_at) >= thirty_ago)
+        .group_by(func.date(HistoricParkingSession.started_at))
+        .all()
+    )
+
+    # Sessions by zone — live (all time)
+    live_by_zone = (
+        db.query(ParkingSession.zone, func.count().label("n"))
+        .group_by(ParkingSession.zone)
+        .all()
+    )
+
+    # Historic: user_type distribution
+    user_type_dist = (
+        db.query(HistoricParkingSession.user_type, func.count().label("n"))
+        .group_by(HistoricParkingSession.user_type)
+        .all()
+    )
+
+    # Historic: payment_type distribution
+    payment_dist = (
+        db.query(HistoricParkingSession.payment_type, func.count().label("n"))
+        .group_by(HistoricParkingSession.payment_type)
+        .all()
+    )
+
+    # Historic: enforcement_status distribution
+    enforcement_dist = (
+        db.query(HistoricParkingSession.enforcement_status, func.count().label("n"))
+        .group_by(HistoricParkingSession.enforcement_status)
+        .all()
+    )
+
+    # Historic: session_type distribution
+    session_type_dist = (
+        db.query(HistoricParkingSession.session_type, func.count().label("n"))
+        .group_by(HistoricParkingSession.session_type)
+        .all()
+    )
+
+    return {
+        "sessions_per_day": {
+            "live":     [{"date": str(r.d), "count": r.n} for r in live_by_day],
+            "historic": [{"date": str(r.d), "count": r.n} for r in hist_by_day],
+        },
+        "sessions_by_zone":       [{"zone": r.zone, "count": r.n} for r in live_by_zone],
+        "user_type_distribution":  [{"type": r.user_type, "count": r.n} for r in user_type_dist],
+        "payment_distribution":    [{"type": r.payment_type, "count": r.n} for r in payment_dist],
+        "enforcement_distribution":[{"status": r.enforcement_status, "count": r.n} for r in enforcement_dist],
+        "session_type_distribution":[{"type": r.session_type, "count": r.n} for r in session_type_dist],
+    }

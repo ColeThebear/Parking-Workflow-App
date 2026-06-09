@@ -62,3 +62,35 @@ class EndSessionRequest(BaseModel):
 class EndSessionResponse(BaseModel):
     success: bool
     message: str
+
+
+# ── Historic session schemas ──────────────────────────────────────────────────
+
+class HistoricSessionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id:                 int
+    vehicle_plate:      str
+    zone:               str
+    started_at:         datetime
+    ended_at:           Optional[datetime] = None
+    duration_minutes:   Optional[int]      = None
+    user_type:          str
+    session_type:       str
+    payment_type:       str
+    enforcement_status: str
+    notes:              Optional[str]      = None
+    imported_at:        datetime
+
+
+class HistoricImportRow(BaseModel):
+    row:       int
+    plate:     str
+    started_at: str
+    reason:    str
+
+
+class HistoricImportResult(BaseModel):
+    added:      int
+    duplicates: list[HistoricImportRow]
+    errors:     list[HistoricImportRow]

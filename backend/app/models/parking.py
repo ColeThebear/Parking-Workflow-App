@@ -26,3 +26,27 @@ class ParkingSession(Base):
     user_id       = Column(Integer,  ForeignKey("users.id"), nullable=True)
 
     user = relationship("User", lazy="select")  # Load user only when accessed
+
+
+class HistoricParkingSession(Base):
+    __tablename__ = "historic_parking_sessions"
+
+    id                 = Column(Integer,  primary_key=True, index=True)
+    vehicle_plate      = Column(String,   index=True, nullable=False)
+    zone               = Column(String,   nullable=False)
+    started_at         = Column(DateTime(timezone=True), nullable=False)
+    ended_at           = Column(DateTime(timezone=True), nullable=True)
+    duration_minutes   = Column(Integer,  nullable=True)
+    # STUDENT / GUEST / UNREGISTERED
+    user_type          = Column(String,   nullable=False, default="STUDENT")
+    # STANDARD / PERMIT / EVENT
+    session_type       = Column(String,   nullable=False, default="STANDARD")
+    # TOKEN / CASH / CARD / FREE
+    payment_type       = Column(String,   nullable=False, default="FREE")
+    # NONE / CHECKED / CITED
+    enforcement_status = Column(String,   nullable=False, default="NONE")
+    notes              = Column(String,   nullable=True)
+    user_id            = Column(Integer,  ForeignKey("users.id"), nullable=True)
+    imported_at        = Column(DateTime(timezone=True), default=_utcnow)
+
+    user = relationship("User", lazy="select")

@@ -18,10 +18,11 @@ import Lookup          from "@/pages/enforcement/Lookup";
 import EnforcementCitations from "@/pages/enforcement/Citations";
 
 // Operator
-import OperatorDashboard from "@/pages/operator/Dashboard";
-import OperatorSearch  from "@/pages/operator/Search";
-import OperatorSessions from "@/pages/operator/Sessions";
-import CsvImport       from "@/pages/operator/CsvImport";
+import OperatorDashboard   from "@/pages/operator/Dashboard";
+import OperatorSearch      from "@/pages/operator/Search";
+import OperatorSessions    from "@/pages/operator/Sessions";
+import CsvImport           from "@/pages/operator/CsvImport";
+import HistoricSessions    from "@/pages/operator/HistoricSessions";
 
 // Admin
 import AdminDashboard  from "@/pages/admin/Dashboard";
@@ -168,6 +169,14 @@ export default function App() {
             element={
               <ProtectedRoute roles={["OPERATOR"]}>
                 <CsvImport />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/operator/historic"
+            element={
+              <ProtectedRoute roles={["OPERATOR"]}>
+                <HistoricSessions />
               </ProtectedRoute>
             }
           />

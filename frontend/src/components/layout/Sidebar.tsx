@@ -55,10 +55,11 @@ const ENFORCEMENT_LINKS: NavItem[] = [
 ];
 
 const OPERATOR_LINKS: NavItem[] = [
-  { to: "/operator",          label: "Dashboard",       icon: <IconDashboard /> },
-  { to: "/operator/search",   label: "Student Search",  icon: <IconSearch /> },
-  { to: "/operator/sessions", label: "All Sessions",    icon: <IconSessions /> },
-  { to: "/operator/import",   label: "Import Students", icon: <IconUpload /> },
+  { to: "/operator",          label: "Dashboard",          icon: <IconDashboard /> },
+  { to: "/operator/search",   label: "Student Search",     icon: <IconSearch /> },
+  { to: "/operator/sessions", label: "All Sessions",       icon: <IconSessions /> },
+  { to: "/operator/historic", label: "Historic Sessions",  icon: <IconClock /> },
+  { to: "/operator/import",   label: "Import",             icon: <IconUpload /> },
 ];
 
 const GUEST_LINKS: NavItem[] = [

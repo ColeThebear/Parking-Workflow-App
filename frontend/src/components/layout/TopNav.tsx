@@ -21,7 +21,7 @@ export default function TopNav({ onMenuClick }: TopNavProps) {
 
       {/* Brand */}
       <span className="font-bold text-gray-900 tracking-wide select-none">
-        SUNY Parking
+        A&amp;C Parking
       </span>
 
       {/* Role pill */}

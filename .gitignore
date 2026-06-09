@@ -47,10 +47,12 @@ dist/
 build/
 *.egg-info/
 
-# --- Sensitive CSV Imports ---
+# --- Sensitive CSV Imports & Mock Data ---
 *_students.csv
 *_guests.csv
 *_import.csv
+*_mock.csv
+historic_sessions_mock.csv
 
 # --- IDE & Editor ---
 .idea/
