@@ -1,7 +1,7 @@
 import secrets
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
@@ -61,13 +61,16 @@ def get_admin_stats(
 
 @router.get("/citations")
 def get_all_citations(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     _: User = Depends(require_admin_citations),
     db: Session = Depends(get_db),
 ):
     citations = (
         db.query(Citation)
         .order_by(Citation.issued_at.desc())
-        .limit(200)
+        .offset(offset)
+        .limit(limit)
         .all()
     )
     return [
@@ -105,10 +108,12 @@ def mark_citation_paid(
 
 @router.get("/users")
 def get_all_users(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     _: User = Depends(require_admin_users),
     db: Session = Depends(get_db),
 ):
-    users = db.query(User).order_by(User.id).all()
+    users = db.query(User).order_by(User.id).offset(offset).limit(limit).all()
     return [
         {"id": u.id, "email": u.email, "role": u.role.value}
         for u in users

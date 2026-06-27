@@ -55,8 +55,16 @@ def migrate_columns() -> None:
         "ALTER TABLE parking_sessions ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ",
         "ALTER TABLE token_balances ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1",
     ]
+    index_stmts = [
+        "CREATE INDEX IF NOT EXISTS ix_session_plate_active ON parking_sessions (vehicle_plate, active)",
+        "CREATE INDEX IF NOT EXISTS ix_check_officer_time ON enforcement_checks (officer_id, checked_at)",
+        "CREATE INDEX IF NOT EXISTS ix_citation_officer_time ON citations (officer_id, issued_at)",
+    ]
+
     with engine.connect() as conn:
         for stmt in column_stmts:
+            conn.execute(text(stmt))
+        for stmt in index_stmts:
             conn.execute(text(stmt))
         conn.commit()
     logger.info("Column migrations applied.")

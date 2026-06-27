@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Text, Index
 from sqlalchemy.orm import relationship
 from ..database import Base
 
@@ -11,6 +11,9 @@ def _utcnow() -> datetime:
 class EnforcementCheck(Base):
     """Logged every time an enforcement officer looks up a plate."""
     __tablename__ = "enforcement_checks"
+    __table_args__ = (
+        Index("ix_check_officer_time", "officer_id", "checked_at"),
+    )
 
     id              = Column(Integer, primary_key=True, index=True)
     officer_id      = Column(Integer, ForeignKey("users.id"), nullable=False)
@@ -24,6 +27,9 @@ class EnforcementCheck(Base):
 class Citation(Base):
     """Parking violation citation issued by enforcement."""
     __tablename__ = "citations"
+    __table_args__ = (
+        Index("ix_citation_officer_time", "officer_id", "issued_at"),
+    )
 
     id              = Column(Integer, primary_key=True, index=True)
     officer_id      = Column(Integer, ForeignKey("users.id"), nullable=False)

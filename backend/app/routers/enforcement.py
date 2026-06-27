@@ -161,6 +161,8 @@ def issue_citation(
 
 @router.get("/citations", response_model=list[CitationOut])
 def list_my_citations(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     current_user: User = Depends(require_enforcement),
     db: Session = Depends(get_db),
 ):
@@ -169,6 +171,8 @@ def list_my_citations(
         db.query(Citation)
         .filter(Citation.officer_id == current_user.id)
         .order_by(Citation.issued_at.desc())
+        .offset(offset)
+        .limit(limit)
         .all()
     )
     return [
