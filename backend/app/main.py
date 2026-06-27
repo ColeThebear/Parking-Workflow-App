@@ -4,6 +4,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
+from .utils.rate_limit import limiter
 
 from .database import Base, engine
 from .models import user, parking, enforcement, vehicle, token, guest   # registers all models
@@ -49,6 +53,7 @@ def migrate_columns() -> None:
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_permission VARCHAR",
         "ALTER TABLE parking_sessions ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ",
+        "ALTER TABLE token_balances ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1",
     ]
     with engine.connect() as conn:
         for stmt in column_stmts:
@@ -148,6 +153,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="SUNY Parking API", lifespan=lifespan)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,

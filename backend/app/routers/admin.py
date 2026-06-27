@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -10,7 +11,14 @@ from ..models.enforcement import Citation
 from ..models.parking import ParkingSession
 from ..models.token import TokenBalance, Transaction
 from ..models.user import User, UserRole
-from ..utils.dependencies import require_admin
+from ..schemas.auth import AdminResetPasswordRequest, AdminResetPasswordResponse
+from ..utils.dependencies import (
+    require_admin,
+    require_admin_citations,
+    require_admin_full,
+    require_admin_users,
+)
+from ..utils.security import hash_password
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -53,7 +61,7 @@ def get_admin_stats(
 
 @router.get("/citations")
 def get_all_citations(
-    _: User = Depends(require_admin),
+    _: User = Depends(require_admin_citations),
     db: Session = Depends(get_db),
 ):
     citations = (
@@ -82,7 +90,7 @@ def get_all_citations(
 @router.patch("/citations/{citation_id}/paid")
 def mark_citation_paid(
     citation_id: int,
-    _: User = Depends(require_admin),
+    _: User = Depends(require_admin_citations),
     db: Session = Depends(get_db),
 ):
     citation = db.query(Citation).filter(Citation.id == citation_id).first()
@@ -97,7 +105,7 @@ def mark_citation_paid(
 
 @router.get("/users")
 def get_all_users(
-    _: User = Depends(require_admin),
+    _: User = Depends(require_admin_users),
     db: Session = Depends(get_db),
 ):
     users = db.query(User).order_by(User.id).all()
@@ -118,13 +126,20 @@ class CreditRequest(BaseModel):
 @router.post("/balance/credit")
 def admin_credit(
     payload: CreditRequest,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_admin_full),
     db: Session = Depends(get_db),
 ):
-    bal = db.query(TokenBalance).filter(TokenBalance.user_id == payload.user_id).first()
+    bal = (
+        db.query(TokenBalance)
+        .filter(TokenBalance.user_id == payload.user_id)
+        .with_for_update()
+        .first()
+    )
     if not bal:
         raise HTTPException(status_code=404, detail="No balance account found for that user.")
+
     bal.balance += payload.amount
+    bal.version += 1
     db.add(Transaction(
         balance_id=bal.id,
         amount=payload.amount,
@@ -133,3 +148,26 @@ def admin_credit(
     ))
     db.commit()
     return {"balance": bal.balance}
+
+
+# ── Password reset (admin resets a user's password) ──────────────────────────
+
+@router.post("/reset-password", response_model=AdminResetPasswordResponse)
+def admin_reset_password(
+    payload: AdminResetPasswordRequest,
+    _: User = Depends(require_admin_full),
+    db: Session = Depends(get_db),
+):
+    user = db.query(User).filter(User.id == payload.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    temp_password = secrets.token_urlsafe(12)
+    user.password_hash = hash_password(temp_password)
+    db.commit()
+
+    return AdminResetPasswordResponse(
+        user_id=user.id,
+        email=user.email,
+        temp_password=temp_password,
+    )

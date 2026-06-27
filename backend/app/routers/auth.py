@@ -1,19 +1,25 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models.user import User, UserRole
 from ..models.guest import GuestProfile
-from ..schemas.auth import LoginRequest, Token, GuestRegisterRequest
+from ..schemas.auth import (
+    LoginRequest, Token, GuestRegisterRequest,
+    ChangePasswordRequest, validate_password_strength,
+)
 from ..utils.security import hash_password, verify_password, create_token
+from ..utils.dependencies import get_current_user
+from ..utils.rate_limit import limiter
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=Token)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)):
     identifier = (payload.email or payload.username or "").strip().lower()
     if not identifier:
         raise HTTPException(status_code=400, detail="Email or username required")
@@ -48,10 +54,16 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/register", response_model=Token)
-def register(payload: LoginRequest, db: Session = Depends(get_db)):
+@limiter.limit("3/minute")
+def register(request: Request, payload: LoginRequest, db: Session = Depends(get_db)):
     identifier = (payload.email or payload.username or "").strip().lower()
     if not identifier:
         raise HTTPException(status_code=400, detail="Email or username required")
+
+    try:
+        validate_password_strength(payload.password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     if db.query(User).filter(User.email == identifier).first():
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -70,7 +82,8 @@ def register(payload: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/guest-register", response_model=Token)
-def guest_register(payload: GuestRegisterRequest, db: Session = Depends(get_db)):
+@limiter.limit("3/minute")
+def guest_register(request: Request, payload: GuestRegisterRequest, db: Session = Depends(get_db)):
     """
     Self-registration endpoint for guest (walk-up) users.
     Creates a User (role=GUEST) + GuestProfile with academic-year expiry.
@@ -103,3 +116,18 @@ def guest_register(payload: GuestRegisterRequest, db: Session = Depends(get_db))
 
     token = create_token({"sub": str(user.id), "role": user.role.value})
     return Token(access_token=token, role=user.role.value)
+
+
+@router.post("/change-password")
+def change_password(
+    payload: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Authenticated users can change their own password."""
+    if not verify_password(payload.current_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+
+    current_user.password_hash = hash_password(payload.new_password)
+    db.commit()
+    return {"success": True}

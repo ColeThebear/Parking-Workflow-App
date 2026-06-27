@@ -1,4 +1,19 @@
-from pydantic import BaseModel, Field
+import re
+
+from pydantic import BaseModel, Field, field_validator
+
+
+def validate_password_strength(password: str) -> str:
+    """Shared password strength check — min 8 chars, upper + lower + digit."""
+    if len(password) < 8:
+        raise ValueError("Password must be at least 8 characters")
+    if not re.search(r"[A-Z]", password):
+        raise ValueError("Password must contain at least one uppercase letter")
+    if not re.search(r"[a-z]", password):
+        raise ValueError("Password must contain at least one lowercase letter")
+    if not re.search(r"\d", password):
+        raise ValueError("Password must contain at least one digit")
+    return password
 
 
 class LoginRequest(BaseModel):
@@ -23,5 +38,30 @@ class Token(BaseModel):
 class GuestRegisterRequest(BaseModel):
     name:          str   = Field(min_length=1, max_length=120)
     email:         str   = Field(min_length=3)
-    password:      str   = Field(min_length=6)
+    password:      str   = Field(min_length=8)
     license_plate: str | None = None
+
+    @field_validator("password")
+    @classmethod
+    def check_password(cls, v: str) -> str:
+        return validate_password_strength(v)
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password:     str = Field(min_length=8)
+
+    @field_validator("new_password")
+    @classmethod
+    def check_new_password(cls, v: str) -> str:
+        return validate_password_strength(v)
+
+
+class AdminResetPasswordRequest(BaseModel):
+    user_id: int
+
+
+class AdminResetPasswordResponse(BaseModel):
+    user_id:        int
+    email:          str
+    temp_password:  str

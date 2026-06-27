@@ -15,6 +15,7 @@ class TokenBalance(Base):
     id          = Column(Integer, primary_key=True, index=True)
     user_id     = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
     balance     = Column(Integer, nullable=False, default=0)  # cents
+    version     = Column(Integer, nullable=False, default=1, server_default="1")
     updated_at  = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
     user         = relationship("User")

@@ -79,3 +79,35 @@ def _require_role(role: UserRole):
 require_enforcement = _require_role(UserRole.ENFORCEMENT)
 require_operator    = _require_role(UserRole.OPERATOR)
 require_admin       = _require_role(UserRole.ADMIN)
+
+
+def _require_admin_with_permissions(*allowed_permissions: str):
+    """
+    Dependency factory — enforces ADMIN role AND checks that the user's
+    admin_permission is either 'full_admin' or one of the explicitly allowed
+    permission strings.
+
+        require_admin_citations = _require_admin_with_permissions("citations_admin")
+        require_admin_users     = _require_admin_with_permissions("reporting_admin")
+    """
+    def _check(current_user: User = Depends(get_current_user)) -> User:
+        if current_user.role != UserRole.ADMIN:
+            raise HTTPException(status_code=403, detail="Requires ADMIN role")
+        if current_user.admin_permission == "full_admin":
+            return current_user
+        if current_user.admin_permission not in allowed_permissions:
+            raise HTTPException(
+                status_code=403,
+                detail="Insufficient admin permissions",
+            )
+        return current_user
+
+    names = "_".join(allowed_permissions)
+    _check.__name__ = f"require_admin_{names}"
+    return _check
+
+
+require_admin_full      = _require_admin_with_permissions()
+require_admin_citations = _require_admin_with_permissions("citations_admin")
+require_admin_users     = _require_admin_with_permissions("reporting_admin")
+require_admin_events    = _require_admin_with_permissions("events_admin")

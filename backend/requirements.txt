@@ -16,3 +16,4 @@ pydantic>=2.0.0            # v2 required — code uses ConfigDict, model_config
 pydantic-settings>=2.0.0   # BaseSettings + .env loading (includes python-dotenv)
 email-validator>=2.0.0     # Required for pydantic EmailStr validation
 python-multipart>=0.0.9    # Required for FastAPI file upload (UploadFile / Form)
+slowapi>=0.1.9             # Rate limiting middleware for FastAPI/Starlette
