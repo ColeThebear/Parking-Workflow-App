@@ -20,13 +20,13 @@ type AuthState = {
   role:            UserRole | null;
   adminPermission: AdminPermission | null;
   isAuthenticated: boolean;
-  login: (token: string, role: UserRole, adminPermission?: string | null) => void;
+  login: (token: string, role: UserRole, adminPermission?: string | null, refreshToken?: string | null) => void;
   logout: () => void;
 };
 
-// Keys must match what api/client.ts reads from localStorage
 const STORAGE_KEYS = {
   token:           "auth_token",
+  refreshToken:    "auth_refresh_token",
   role:            "auth_role",
   adminPermission: "auth_admin_permission",
 } as const;
@@ -63,9 +63,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => parseAdminPerm(localStorage.getItem(STORAGE_KEYS.adminPermission))
   );
 
-  const login = useCallback((newToken: string, newRole: UserRole, newAdminPerm?: string | null) => {
+  const login = useCallback((newToken: string, newRole: UserRole, newAdminPerm?: string | null, refreshToken?: string | null) => {
     localStorage.setItem(STORAGE_KEYS.token, newToken);
     localStorage.setItem(STORAGE_KEYS.role, newRole);
+    if (refreshToken) {
+      localStorage.setItem(STORAGE_KEYS.refreshToken, refreshToken);
+    }
     const perm = parseAdminPerm(newAdminPerm ?? null);
     if (perm) {
       localStorage.setItem(STORAGE_KEYS.adminPermission, perm);
@@ -79,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     localStorage.removeItem(STORAGE_KEYS.token);
+    localStorage.removeItem(STORAGE_KEYS.refreshToken);
     localStorage.removeItem(STORAGE_KEYS.role);
     localStorage.removeItem(STORAGE_KEYS.adminPermission);
     setToken(null);

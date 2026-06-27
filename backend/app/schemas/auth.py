@@ -26,13 +26,15 @@ class LoginRequest(BaseModel):
 
 class Token(BaseModel):
     access_token:           str
+    refresh_token:          str | None = None
     token_type:             str  = "bearer"
     role:                   str | None = None
-    # True when the student's last session was ended by an operator.
-    # The login endpoint resets this flag to False after reading it.
     terminated_by_operator: bool = False
-    # ADMIN users only: full_admin | events_admin | citations_admin | reporting_admin
     admin_permission:        str | None = None
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
 
 
 class GuestRegisterRequest(BaseModel):

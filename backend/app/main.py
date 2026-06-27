@@ -8,6 +8,10 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from .utils.rate_limit import limiter
+from .utils.exceptions import AppError, app_error_handler
+from .utils.logging_config import configure_logging, RequestLoggingMiddleware
+
+configure_logging()
 
 from .database import Base, engine
 from .models import user, parking, enforcement, vehicle, token, guest   # registers all models
@@ -164,6 +168,8 @@ app = FastAPI(title="SUNY Parking API", lifespan=lifespan)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(AppError, app_error_handler)
+app.add_middleware(RequestLoggingMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

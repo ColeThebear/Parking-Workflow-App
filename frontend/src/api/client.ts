@@ -1,16 +1,13 @@
 import axios from "axios";
-import type { AxiosError } from "axios";
+import type { AxiosError, InternalAxiosRequestConfig } from "axios";
 
 export type { AxiosError };
 
 const api = axios.create({
   baseURL: "/api",
-  headers: {
-    "Content-Type": "application/json",
-  },
+  headers: { "Content-Type": "application/json" },
 });
 
-// Attach the stored Bearer token to every outgoing request
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("auth_token");
   if (token) {
@@ -19,42 +16,64 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Track consecutive 401s — only logout after 5 in a row to survive
-// transient backend restarts or brief Docker network issues.
-// StrictMode is disabled, but keep a generous threshold for any concurrent requests.
-let consecutive401s = 0;
-let logoutScheduled = false;
+let isRefreshing = false;
+let refreshQueue: ((token: string) => void)[] = [];
+
+function clearAuthAndRedirect() {
+  localStorage.removeItem("auth_token");
+  localStorage.removeItem("auth_refresh_token");
+  localStorage.removeItem("auth_role");
+  localStorage.removeItem("auth_admin_permission");
+  window.location.href = "/login";
+}
 
 api.interceptors.response.use(
-  (response) => {
-    consecutive401s = 0; // reset on any success
-    return response;
-  },
-  (error: AxiosError) => {
+  (response) => response,
+  async (error: AxiosError) => {
     const status = error.response?.status;
+    const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-    if (status === 401 && localStorage.getItem("auth_token")) {
-      consecutive401s++;
-      if (consecutive401s >= 5 && !logoutScheduled) {
-        // Five consecutive 401s means the token is genuinely expired/invalid
-        logoutScheduled = true;
-        consecutive401s = 0;
-        localStorage.removeItem("auth_token");
-        localStorage.removeItem("auth_role");
-        window.location.href = "/login";
+    if (status === 401 && !original._retry && localStorage.getItem("auth_refresh_token")) {
+      original._retry = true;
+
+      if (isRefreshing) {
+        return new Promise((resolve) => {
+          refreshQueue.push((newToken: string) => {
+            original.headers.Authorization = `Bearer ${newToken}`;
+            resolve(api(original));
+          });
+        });
       }
-    } else if (status === 403 && localStorage.getItem("auth_token")) {
-      // 403 on an authenticated request means role mismatch — the stored token
-      // belongs to a different role than what auth_role says. Clear and re-login.
-      if (!logoutScheduled) {
-        logoutScheduled = true;
-        localStorage.removeItem("auth_token");
-        localStorage.removeItem("auth_role");
-        window.location.href = "/login";
+
+      isRefreshing = true;
+      try {
+        const refreshToken = localStorage.getItem("auth_refresh_token")!;
+        const { data } = await axios.post("/api/auth/refresh", { refresh_token: refreshToken });
+
+        localStorage.setItem("auth_token", data.access_token);
+        if (data.refresh_token) {
+          localStorage.setItem("auth_refresh_token", data.refresh_token);
+        }
+
+        refreshQueue.forEach((cb) => cb(data.access_token));
+        refreshQueue = [];
+
+        original.headers.Authorization = `Bearer ${data.access_token}`;
+        return api(original);
+      } catch {
+        clearAuthAndRedirect();
+        return Promise.reject(error);
+      } finally {
+        isRefreshing = false;
       }
-    } else {
-      consecutive401s = 0;
     }
+
+    if (status === 401 && !localStorage.getItem("auth_refresh_token")) {
+      clearAuthAndRedirect();
+    } else if (status === 403 && localStorage.getItem("auth_token")) {
+      clearAuthAndRedirect();
+    }
+
     return Promise.reject(error);
   }
 );

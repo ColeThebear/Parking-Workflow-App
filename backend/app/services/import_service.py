@@ -107,7 +107,7 @@ def import_historic_sessions(db: Session, csv_text: str) -> dict:
 
     for row_num, row in enumerate(reader, start=2):
         plate = _field(row, "plate").upper()
-        zone = _field(row, "zone")
+        zone = _field(row, "zone").strip().title()
         started_raw = _field(row, "started_at")
 
         if not plate:

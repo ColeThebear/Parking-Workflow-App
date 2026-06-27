@@ -50,8 +50,8 @@ def start_parking(
 
     now = datetime.now(timezone.utc)
     session = ParkingSession(
-        vehicle_plate=payload.plate,
-        zone=payload.zone,
+        vehicle_plate=payload.plate.strip().upper(),
+        zone=payload.zone.strip().title(),
         user_id=current_user.id,
         started_at=now,
         expires_at=now + timedelta(hours=PARKING_SESSION_HOURS),

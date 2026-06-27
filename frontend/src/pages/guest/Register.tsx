@@ -8,8 +8,9 @@ import { TextInput } from "@/components/ui/Input";
 import type { UserRole } from "@/auth/AuthContext";
 
 type GuestRegisterResponse = {
-  access_token: string;
-  role:         UserRole;
+  access_token:  string;
+  refresh_token: string | null;
+  role:          UserRole;
 };
 
 export default function GuestRegister() {
@@ -34,8 +35,8 @@ export default function GuestRegister() {
       showToast("error", "Passwords do not match.");
       return;
     }
-    if (pass.length < 6) {
-      showToast("error", "Password must be at least 6 characters.");
+    if (pass.length < 8) {
+      showToast("error", "Password must be at least 8 characters.");
       return;
     }
 
@@ -47,7 +48,7 @@ export default function GuestRegister() {
         password:      pass,
         license_plate: plate.trim().toUpperCase() || null,
       });
-      login(data.access_token, data.role);
+      login(data.access_token, data.role, null, data.refresh_token);
       showToast("success", "Guest account created. Welcome!");
       navigate("/student/start", { replace: true });
     } catch (err) {

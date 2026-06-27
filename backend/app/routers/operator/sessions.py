@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import Optional
 
 from ...database import get_db
@@ -61,6 +61,7 @@ def get_active_sessions(_: User = Depends(require_operator), db: Session = Depen
     now = datetime.now(timezone.utc)
     sessions = (
         db.query(ParkingSession)
+        .options(joinedload(ParkingSession.user))
         .filter(ParkingSession.active.is_(True),
                 or_(ParkingSession.expires_at.is_(None), ParkingSession.expires_at > now))
         .order_by(ParkingSession.started_at.desc())
@@ -84,7 +85,7 @@ def get_todays_sessions(
     _: User = Depends(require_operator),
     db: Session = Depends(get_db),
 ):
-    q = db.query(ParkingSession).filter(func.date(ParkingSession.started_at) == func.current_date())
+    q = db.query(ParkingSession).options(joinedload(ParkingSession.user)).filter(func.date(ParkingSession.started_at) == func.current_date())
     if zone:
         q = q.filter(ParkingSession.zone == zone)
     if plate:
@@ -106,6 +107,7 @@ def get_todays_sessions(
 def get_enforcement_checks(_: User = Depends(require_operator), db: Session = Depends(get_db)):
     checks = (
         db.query(EnforcementCheck)
+        .options(joinedload(EnforcementCheck.officer))
         .filter(func.date(EnforcementCheck.checked_at) == func.current_date())
         .order_by(EnforcementCheck.checked_at.desc())
         .all()
@@ -123,6 +125,7 @@ def get_enforcement_checks(_: User = Depends(require_operator), db: Session = De
 def get_violations(_: User = Depends(require_operator), db: Session = Depends(get_db)):
     citations = (
         db.query(Citation)
+        .options(joinedload(Citation.officer), joinedload(Citation.student))
         .filter(func.date(Citation.issued_at) == func.current_date())
         .order_by(Citation.issued_at.desc())
         .all()

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
 from ..models.enforcement import Citation
@@ -68,6 +68,7 @@ def get_all_citations(
 ):
     citations = (
         db.query(Citation)
+        .options(joinedload(Citation.officer), joinedload(Citation.student))
         .order_by(Citation.issued_at.desc())
         .offset(offset)
         .limit(limit)

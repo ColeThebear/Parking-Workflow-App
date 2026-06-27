@@ -1,17 +1,23 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import App from "../App";
-import { AuthProvider } from "../context/AuthContext";
+import { AuthProvider } from "../auth/AuthContext";
 
 function renderWithAuth(role: "PARKER" | "OPERATOR" | "ENFORCEMENT") {
+  localStorage.setItem("auth_token", "fake");
+  localStorage.setItem("auth_role", role);
   return render(
-    <AuthProvider initialValue={{ role, token: "fake", isAuthenticated: true }}>
+    <AuthProvider>
       <MemoryRouter initialEntries={["/dashboard"]}>
         <App />
       </MemoryRouter>
     </AuthProvider>
   );
 }
+
+afterEach(() => {
+  localStorage.clear();
+});
 
 test("parker sees student dashboard", () => {
   renderWithAuth("PARKER");

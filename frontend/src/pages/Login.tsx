@@ -17,6 +17,7 @@ const ROLE_REDIRECTS: Record<UserRole, string> = {
 
 type LoginResponse = {
   access_token:           string;
+  refresh_token:          string | null;
   role:                   UserRole;
   terminated_by_operator: boolean;
   admin_permission:       string | null;
@@ -43,7 +44,7 @@ export default function Login() {
     try {
       const { data } = await api.post<LoginResponse>("/auth/login", { email, password });
 
-      login(data.access_token, data.role, data.admin_permission);
+      login(data.access_token, data.role, data.admin_permission, data.refresh_token);
 
       const destination = ROLE_REDIRECTS[data.role];
       if (!destination) {

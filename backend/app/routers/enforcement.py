@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import Optional
 
 from ..database import get_db
@@ -169,6 +169,7 @@ def list_my_citations(
     """All citations issued by this officer."""
     citations = (
         db.query(Citation)
+        .options(joinedload(Citation.officer), joinedload(Citation.student))
         .filter(Citation.officer_id == current_user.id)
         .order_by(Citation.issued_at.desc())
         .offset(offset)
