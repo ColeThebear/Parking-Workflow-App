@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { LoginForm } from "../components/LoginForm";
 
 test("submits email and password", async () => {
-  const handleSubmit = jest.fn();
+  const handleSubmit = vi.fn();
   render(<LoginForm onSubmit={handleSubmit} />);
 
   await userEvent.type(screen.getByLabelText(/email/i), "student@example.com");
