@@ -16,6 +16,17 @@ from sqlalchemy.orm import sessionmaker
 
 from app.main import app
 from app.database import Base, get_db, engine as db_engine
+from app.utils.rate_limit import limiter
+
+
+# Replace _check_request_limit with a no-op at module load time.
+# The @limiter.limit() decorator calls await self._check_request_limit(...)
+# at request time; an instance attribute shadows the class method, so this
+# bypasses rate enforcement regardless of which slowapi version is installed.
+async def _noop_rate_limit_check(*args, **kwargs) -> None:
+    return
+
+limiter._check_request_limit = _noop_rate_limit_check
 
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
 
