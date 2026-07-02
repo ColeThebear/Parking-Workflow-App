@@ -17,6 +17,20 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db_en
 
 
 @pytest.fixture(scope="session", autouse=True)
+def disable_rate_limiting():
+    """Disable slowapi rate limits for the test session.
+
+    TestClient uses a fixed remote address ('testclient'), so all tests share
+    one rate-limit bucket. Without this, the 5/minute cap on /auth/login is
+    exhausted after the 5th test and subsequent logins return 429.
+    """
+    from app.utils.rate_limit import limiter
+    limiter._enabled = False
+    yield
+    limiter._enabled = True
+
+
+@pytest.fixture(scope="session", autouse=True)
 def setup_test_db():
     """Wait for DB, create all tables once, seed demo users. Drops all on teardown."""
     for attempt in range(10):
