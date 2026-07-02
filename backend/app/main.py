@@ -2,7 +2,7 @@ import logging
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -170,6 +170,16 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_exception_handler(AppError, app_error_handler)
 app.add_middleware(RequestLoggingMiddleware)
+
+
+@app.middleware("http")
+async def init_rate_limit_state(request: Request, call_next):
+    # slowapi sets request.state.view_rate_limit after a successful limit check.
+    # When rate limiting is bypassed (tests, disabled env) that attribute is never
+    # written, causing an AttributeError if anything downstream reads it.
+    # Pre-initialising to None ensures the attribute always exists.
+    request.state.view_rate_limit = None
+    return await call_next(request)
 
 app.add_middleware(
     CORSMiddleware,
