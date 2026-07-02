@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 # DATABASE_URL and SECRET_KEY must be set in the environment before running
 # tests. In CI these come from the GitHub Actions workflow env block.
-# Locally: export DATABASE_URL=postgresql+psycopg2://user:pass@localhost:5432/test_db
+# Locally, export DATABASE_URL before running pytest (see conftest.example.py).
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from app.main import app
