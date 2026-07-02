@@ -8,5 +8,5 @@ def test_default_users_created(client, db):
     # at least the four configured defaults should exist
     assert len(users) >= 4
     emails = {u.email for u in users}
-    assert "student1@suny.edu" in emails
+    assert "jsmith@suny.edu" in emails
     assert "operator@suny.edu" in emails

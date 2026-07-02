@@ -26,7 +26,7 @@ def test_seeded_account_login(client):
     # when the API starts it seeds several known users, make sure one of them
     # can authenticate using the documented credentials.
     response = client.post("/auth/login", json={
-        "email": "student1@suny.edu",
+        "email": "jsmith@suny.edu",
         "password": "Test123!",
     })
     assert response.status_code == 200
@@ -36,7 +36,7 @@ def test_seeded_account_login(client):
 
 def test_login_failure(client):
     response = client.post("/auth/login", json={
-        "username": "wrong",
-        "password": "wrong"
+        "email": "nobody@test.com",
+        "password": "wrongpassword"
     })
     assert response.status_code == 401

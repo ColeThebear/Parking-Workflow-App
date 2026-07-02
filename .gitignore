@@ -70,7 +70,6 @@ debug.log
 requirements.lock
 
 # --- Test config with local DB credentials (use *.example.* versions as templates) ---
-backend/tests/conftest.py
 backend/tests/pytest.ini
 backend/conftest.py
 backend/pytest.ini

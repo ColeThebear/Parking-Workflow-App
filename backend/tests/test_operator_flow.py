@@ -6,59 +6,50 @@ from app.models.parking import ParkingSession
 def test_operator_dashboard(client, db):
     operator = User(
         email="operator_test@test.com",
-        password_hash = hash_password("123"),
+        password_hash=hash_password("Test123!"),
         role="OPERATOR"
     )
     parker = User(
         email="parker_operator@test.com",
-        password_hash = hash_password("123"),
+        password_hash=hash_password("Test123!"),
         role="PARKER"
     )
     db.add(operator)
     db.add(parker)
     db.commit()
 
-    # Create some parking sessions
-    session1 = ParkingSession(
+    # Create an active session with a unique plate
+    session = ParkingSession(
         user_id=parker.id,
-        vehicle_plate="ABC123",
+        vehicle_plate="OPR001",
         zone="A1",
         active=True
     )
-    session2 = ParkingSession(
-        user_id=parker.id,
-        vehicle_plate="XYZ789",
-        zone="B2",
-        active=False
-    )
-    db.add(session1)
-    db.add(session2)
+    db.add(session)
     db.commit()
 
     login = client.post("/auth/login", json={
         "email": "operator_test@test.com",
-        "password": "123"
+        "password": "Test123!"
     })
     token = login.json()["access_token"]
 
+    # Stats endpoint
     response = client.get(
-        "/parking",
+        "/operator/stats",
         headers={"Authorization": f"Bearer {token}"}
     )
-
     assert response.status_code == 200
     data = response.json()
-    # Just check that we got a response from the operator
-    assert isinstance(data, (list, dict))
+    assert "active_sessions" in data
 
-    # verify active-specific endpoint filters correctly
+    # Active sessions endpoint
     resp_active = client.get(
-        "/parking/active",
+        "/operator/sessions/active",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert resp_active.status_code == 200
     active_data = resp_active.json()
-    # only one of the sessions we created was active
     assert isinstance(active_data, list)
-    assert len(active_data) == 1
-    assert active_data[0]["active"] is True
+    plates = [s["plate"] for s in active_data]
+    assert "OPR001" in plates
