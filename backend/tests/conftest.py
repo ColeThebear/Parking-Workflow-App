@@ -1,33 +1,23 @@
 import os
 import sys
 import time
+
+# MUST be set before any app imports — rate_limit.py reads this at construction
+# time, so the Limiter is created with enabled=False for the entire test session.
+# TestClient uses a fixed remote address ('testclient'), so without this every
+# test that calls /auth/login exhausts the 5/minute cap and gets 429.
+os.environ["RATELIMIT_ENABLED"] = "0"
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
-
-# DATABASE_URL and SECRET_KEY must be set in the environment before running
-# tests. In CI these come from the GitHub Actions workflow env block.
-# Locally, export DATABASE_URL before running pytest (see conftest.example.py).
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from app.main import app
 from app.database import Base, get_db, engine as db_engine
 
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
-
-
-@pytest.fixture(scope="session", autouse=True)
-def disable_rate_limiting():
-    """Disable slowapi rate limits for the test session.
-
-    TestClient uses a fixed remote address ('testclient'), so all tests share
-    one rate-limit bucket. Without this, the 5/minute cap on /auth/login is
-    exhausted after the 5th test and subsequent logins return 429.
-    """
-    from app.utils.rate_limit import limiter
-    limiter._enabled = False
-    yield
-    limiter._enabled = True
 
 
 @pytest.fixture(scope="session", autouse=True)
