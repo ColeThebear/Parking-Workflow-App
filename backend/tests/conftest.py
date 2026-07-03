@@ -2,12 +2,6 @@ import os
 import sys
 import time
 
-# MUST be set before any app imports — rate_limit.py reads this at construction
-# time, so the Limiter is created with enabled=False for the entire test session.
-# TestClient uses a fixed remote address ('testclient'), so without this every
-# test that calls /auth/login exhausts the 5/minute cap and gets 429.
-os.environ["RATELIMIT_ENABLED"] = "0"
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import pytest
@@ -17,16 +11,6 @@ from sqlalchemy.orm import sessionmaker
 from app.main import app
 from app.database import Base, get_db, engine as db_engine
 from app.utils.rate_limit import limiter
-
-
-# Replace _check_request_limit with a no-op at module load time.
-# The @limiter.limit() decorator calls await self._check_request_limit(...)
-# at request time; an instance attribute shadows the class method, so this
-# bypasses rate enforcement regardless of which slowapi version is installed.
-async def _noop_rate_limit_check(*args, **kwargs) -> None:
-    return
-
-limiter._check_request_limit = _noop_rate_limit_check
 
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
 
@@ -64,6 +48,11 @@ def db():
 def client(db):
     def override_get_db():
         yield db
+
+    # Reset in-memory rate limit counters so each test starts clean.
+    # TestClient uses a fixed remote address, so without this tests that call
+    # rate-limited endpoints back-to-back would exhaust the per-minute caps.
+    limiter._storage.reset()
 
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app, raise_server_exceptions=True) as test_client:

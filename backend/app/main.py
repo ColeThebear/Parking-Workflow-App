@@ -174,10 +174,8 @@ app.add_middleware(RequestLoggingMiddleware)
 
 @app.middleware("http")
 async def init_rate_limit_state(request: Request, call_next):
-    # slowapi sets request.state.view_rate_limit after a successful limit check.
-    # When rate limiting is bypassed (tests, disabled env) that attribute is never
-    # written, causing an AttributeError if anything downstream reads it.
-    # Pre-initialising to None ensures the attribute always exists.
+    # slowapi writes request.state.view_rate_limit only on rate-limited routes.
+    # Pre-initialise to None so undecorated routes don't raise AttributeError.
     request.state.view_rate_limit = None
     return await call_next(request)
 
