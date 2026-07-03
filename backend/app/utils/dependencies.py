@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
@@ -16,11 +16,23 @@ _bearer = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     db: Session = Depends(get_db),
 ) -> User:
-    """Validate Bearer token and return the authenticated User."""
-    if not credentials:
+    """Validate the access token and return the authenticated User.
+
+    Token source priority:
+      1. Authorization: Bearer <token> header  (tests, programmatic API clients)
+      2. access_token HttpOnly cookie          (browser / frontend)
+    """
+    raw_token: str | None = None
+    if credentials:
+        raw_token = credentials.credentials
+    else:
+        raw_token = request.cookies.get("access_token")
+
+    if not raw_token:
         raise HTTPException(
             status_code=401,
             detail="Not authenticated",
@@ -28,11 +40,7 @@ def get_current_user(
         )
 
     try:
-        payload = jwt.decode(
-            credentials.credentials,
-            settings.SECRET_KEY,
-            algorithms=[settings.ALGORITHM],
-        )
+        payload = jwt.decode(raw_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id: str | None = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token payload")

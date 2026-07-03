@@ -4,7 +4,6 @@ import App from "../App";
 import { AuthProvider } from "../auth/AuthContext";
 
 function renderWithAuth(role: "PARKER" | "OPERATOR" | "ENFORCEMENT") {
-  localStorage.setItem("auth_token", "fake");
   localStorage.setItem("auth_role", role);
   return render(
     <AuthProvider>

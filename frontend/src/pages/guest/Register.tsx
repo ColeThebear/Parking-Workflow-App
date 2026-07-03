@@ -8,9 +8,8 @@ import { TextInput } from "@/components/ui/Input";
 import type { UserRole } from "@/auth/AuthContext";
 
 type GuestRegisterResponse = {
-  access_token:  string;
-  refresh_token: string | null;
-  role:          UserRole;
+  role: UserRole;
+  // Tokens are delivered as HttpOnly cookies — not present in this payload.
 };
 
 export default function GuestRegister() {
@@ -48,7 +47,7 @@ export default function GuestRegister() {
         password:      pass,
         license_plate: plate.trim().toUpperCase() || null,
       });
-      login(data.access_token, data.role, null, data.refresh_token);
+      login(data.role, null);
       showToast("success", "Guest account created. Welcome!");
       navigate("/student/start", { replace: true });
     } catch (err) {

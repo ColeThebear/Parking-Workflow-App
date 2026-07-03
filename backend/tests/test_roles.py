@@ -2,47 +2,17 @@ from app.models.user import User
 from app.utils.security import hash_password
 
 
-def test_parker_cannot_access_enforcement(client, db):
-    user = User(
-        email="parker_roles@test.com",
-        password_hash=hash_password("Test123!"),
-        role="PARKER"
-    )
-    db.add(user)
-    db.commit()
+def test_parker_cannot_access_enforcement(client, db, make_user, auth_headers):
+    make_user("parker_roles@test.com", role="PARKER")
+    headers = auth_headers("parker_roles@test.com")
 
-    login = client.post("/auth/login", json={
-        "email": "parker_roles@test.com",
-        "password": "Test123!"
-    })
-    token = login.json()["access_token"]
-
-    response = client.get(
-        "/enforcement/lookup?plate=ABC123",
-        headers={"Authorization": f"Bearer {token}"}
-    )
-
+    response = client.get("/enforcement/lookup?plate=ABC123", headers=headers)
     assert response.status_code == 403
 
 
-def test_enforcement_can_access_enforcement(client, db):
-    user = User(
-        email="enforcer_roles@test.com",
-        password_hash=hash_password("Test123!"),
-        role="ENFORCEMENT"
-    )
-    db.add(user)
-    db.commit()
+def test_enforcement_can_access_enforcement(client, db, make_user, auth_headers):
+    make_user("enforcer_roles@test.com", role="ENFORCEMENT")
+    headers = auth_headers("enforcer_roles@test.com")
 
-    login = client.post("/auth/login", json={
-        "email": "enforcer_roles@test.com",
-        "password": "Test123!"
-    })
-    token = login.json()["access_token"]
-
-    response = client.get(
-        "/enforcement/lookup?plate=ABC123",
-        headers={"Authorization": f"Bearer {token}"}
-    )
-
+    response = client.get("/enforcement/lookup?plate=ABC123", headers=headers)
     assert response.status_code == 200

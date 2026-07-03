@@ -1,43 +1,25 @@
-from app.models.user import User
-from app.utils.security import hash_password
+from datetime import datetime, timezone, timedelta
 from app.models.parking import ParkingSession
 
 
-def test_enforcement_lookup_active_parking(client, db):
-    parker = User(
-        email="parker_enforcement@test.com",
-        password_hash=hash_password("Test123!"),
-        role="PARKER"
-    )
-    enforcer = User(
-        email="enforcer_enforcement@test.com",
-        password_hash=hash_password("Test123!"),
-        role="ENFORCEMENT"
-    )
-    db.add(parker)
-    db.add(enforcer)
-    db.commit()
+def test_enforcement_lookup_active_parking(client, db, make_user, auth_headers):
+    parker   = make_user("parker_enforcement@test.com")
+    enforcer = make_user("enforcer_enforcement@test.com", role="ENFORCEMENT")
 
-    # Create active parking session with a unique plate
+    now = datetime.now(timezone.utc)
     session = ParkingSession(
         user_id=parker.id,
         vehicle_plate="ENF001",
         zone="A1",
-        active=True
+        active=True,
+        started_at=now,
+        expires_at=now + timedelta(hours=1),
     )
     db.add(session)
     db.commit()
 
-    login = client.post("/auth/login", json={
-        "email": "enforcer_enforcement@test.com",
-        "password": "Test123!"
-    })
-    token = login.json()["access_token"]
-
-    response = client.get(
-        "/enforcement/lookup?plate=ENF001",
-        headers={"Authorization": f"Bearer {token}"}
-    )
+    headers = auth_headers("enforcer_enforcement@test.com")
+    response = client.get("/enforcement/lookup?plate=ENF001", headers=headers)
 
     assert response.status_code == 200
     data = response.json()

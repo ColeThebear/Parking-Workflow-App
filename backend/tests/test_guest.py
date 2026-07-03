@@ -10,8 +10,8 @@ def test_guest_register(client):
     })
     assert resp.status_code == 200
     data = resp.json()
-    assert "access_token" in data
     assert data["role"] == "GUEST"
+    assert "access_token" not in data  # token lives in HttpOnly cookie
 
 
 def test_guest_login_after_register(client):

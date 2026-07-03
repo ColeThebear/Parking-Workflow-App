@@ -6,22 +6,17 @@ export type { AxiosError };
 const api = axios.create({
   baseURL: "/api",
   headers: { "Content-Type": "application/json" },
+  // Required so the browser sends HttpOnly auth cookies on every request.
+  withCredentials: true,
 });
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("auth_token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+// No Authorization header interceptor — tokens live in HttpOnly cookies
+// that the browser sends automatically. JS never touches the raw token.
 
 let isRefreshing = false;
-let refreshQueue: ((token: string) => void)[] = [];
+let refreshQueue: ((ok: boolean) => void)[] = [];
 
 function clearAuthAndRedirect() {
-  localStorage.removeItem("auth_token");
-  localStorage.removeItem("auth_refresh_token");
   localStorage.removeItem("auth_role");
   localStorage.removeItem("auth_admin_permission");
   window.location.href = "/login";
@@ -30,37 +25,29 @@ function clearAuthAndRedirect() {
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const status = error.response?.status;
+    const status  = error.response?.status;
     const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-    if (status === 401 && !original._retry && localStorage.getItem("auth_refresh_token")) {
+    // On 401, try a silent token refresh using the HttpOnly refresh cookie.
+    if (status === 401 && !original._retry) {
       original._retry = true;
 
       if (isRefreshing) {
-        return new Promise((resolve) => {
-          refreshQueue.push((newToken: string) => {
-            original.headers.Authorization = `Bearer ${newToken}`;
-            resolve(api(original));
-          });
+        return new Promise((resolve, reject) => {
+          refreshQueue.push((ok) => (ok ? resolve(api(original)) : reject(error)));
         });
       }
 
       isRefreshing = true;
       try {
-        const refreshToken = localStorage.getItem("auth_refresh_token")!;
-        const { data } = await axios.post("/api/auth/refresh", { refresh_token: refreshToken });
-
-        localStorage.setItem("auth_token", data.access_token);
-        if (data.refresh_token) {
-          localStorage.setItem("auth_refresh_token", data.refresh_token);
-        }
-
-        refreshQueue.forEach((cb) => cb(data.access_token));
+        // Browser sends the refresh_token cookie automatically — no body needed.
+        await axios.post("/api/auth/refresh", {}, { withCredentials: true });
+        refreshQueue.forEach((cb) => cb(true));
         refreshQueue = [];
-
-        original.headers.Authorization = `Bearer ${data.access_token}`;
         return api(original);
       } catch {
+        refreshQueue.forEach((cb) => cb(false));
+        refreshQueue = [];
         clearAuthAndRedirect();
         return Promise.reject(error);
       } finally {
@@ -68,9 +55,7 @@ api.interceptors.response.use(
       }
     }
 
-    if (status === 401 && !localStorage.getItem("auth_refresh_token")) {
-      clearAuthAndRedirect();
-    } else if (status === 403 && localStorage.getItem("auth_token")) {
+    if (status === 403 && localStorage.getItem("auth_role")) {
       clearAuthAndRedirect();
     }
 

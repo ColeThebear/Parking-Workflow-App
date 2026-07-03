@@ -25,6 +25,8 @@ class LoginRequest(BaseModel):
 
 
 class Token(BaseModel):
+    """Kept for internal use and programmatic API clients only.
+    The browser-facing login flow uses AuthSuccess — no tokens in the body."""
     access_token:           str
     refresh_token:          str | None = None
     token_type:             str  = "bearer"
@@ -33,8 +35,18 @@ class Token(BaseModel):
     admin_permission:        str | None = None
 
 
+class AuthSuccess(BaseModel):
+    """Response body for cookie-based auth endpoints.
+    Tokens are delivered as HttpOnly cookies, not in this payload."""
+    role:                   str
+    admin_permission:       str | None = None
+    terminated_by_operator: bool = False
+
+
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    """Legacy: accepts refresh_token in body for programmatic/API clients.
+    The browser path reads from the refresh_token HttpOnly cookie instead."""
+    refresh_token: str | None = None
 
 
 class GuestRegisterRequest(BaseModel):

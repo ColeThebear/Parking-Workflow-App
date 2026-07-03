@@ -11,8 +11,8 @@ def test_register_success(client):
     })
     assert resp.status_code == 200
     data = resp.json()
-    assert "access_token" in data
     assert data["role"] == "PARKER"
+    assert "access_token" not in data   # token lives in HttpOnly cookie
 
 
 def test_register_duplicate_email(client):
@@ -63,24 +63,21 @@ def test_invalid_token_returns_401(client):
 
 def test_refresh_token_flow(client, make_user):
     make_user("refresh_flow@test.com")
+    # Login sets the refresh_token HttpOnly cookie on the TestClient's cookie jar
     login = client.post("/auth/login", json={
         "email": "refresh_flow@test.com",
         "password": "Test123!",
     })
     assert login.status_code == 200
-    refresh_token = login.json().get("refresh_token")
-    assert refresh_token, "Login response must include refresh_token"
 
-    resp = client.post("/auth/refresh", json={"refresh_token": refresh_token})
+    # TestClient sends the cookie automatically — no body needed
+    resp = client.post("/auth/refresh")
     assert resp.status_code == 200
-    data = resp.json()
-    assert "access_token" in data
-    # Verify the new token actually works on a protected route
-    protected = client.get(
-        "/student/active",
-        headers={"Authorization": f"Bearer {data['access_token']}"},
-    )
-    assert protected.status_code in (200, 404)  # 404 = no session, but auth succeeded
+    assert resp.json()["role"] == "PARKER"
+
+    # New access_token cookie should allow protected routes
+    protected = client.get("/student/active")
+    assert protected.status_code in (200, 404)  # 404 = no session, but auth passed
 
 
 def test_refresh_with_invalid_token(client):
@@ -88,17 +85,13 @@ def test_refresh_with_invalid_token(client):
     assert resp.status_code == 401
 
 
-def test_change_password(client, make_user):
+def test_change_password(client, make_user, auth_headers):
     make_user("changepw@test.com", password="OldPass1!")
-    login = client.post("/auth/login", json={
-        "email": "changepw@test.com",
-        "password": "OldPass1!",
-    })
-    token = login.json()["access_token"]
+    headers = auth_headers("changepw@test.com", "OldPass1!")
 
     resp = client.post(
         "/auth/change-password",
-        headers={"Authorization": f"Bearer {token}"},
+        headers=headers,
         json={"current_password": "OldPass1!", "new_password": "NewPass2!"},
     )
     assert resp.status_code == 200
@@ -114,30 +107,21 @@ def test_change_password(client, make_user):
     }).status_code == 200
 
 
-def test_change_password_wrong_current(client, make_user):
+def test_change_password_wrong_current(client, make_user, auth_headers):
     make_user("changepw_bad@test.com")
-    login = client.post("/auth/login", json={
-        "email": "changepw_bad@test.com", "password": "Test123!",
-    })
-    token = login.json()["access_token"]
+    headers = auth_headers("changepw_bad@test.com")
 
     resp = client.post(
         "/auth/change-password",
-        headers={"Authorization": f"Bearer {token}"},
+        headers=headers,
         json={"current_password": "WrongCurrent!", "new_password": "NewPass2!"},
     )
     assert resp.status_code == 400
 
 
-def test_wrong_role_returns_403(client, make_user):
+def test_wrong_role_returns_403(client, make_user, auth_headers):
     make_user("parker_403@test.com", role="PARKER")
-    login = client.post("/auth/login", json={
-        "email": "parker_403@test.com", "password": "Test123!",
-    })
-    token = login.json()["access_token"]
+    headers = auth_headers("parker_403@test.com")
 
-    resp = client.get(
-        "/enforcement/lookup?plate=XYZ999",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    resp = client.get("/enforcement/lookup?plate=XYZ999", headers=headers)
     assert resp.status_code == 403

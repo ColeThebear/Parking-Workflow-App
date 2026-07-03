@@ -5,10 +5,10 @@ import {
   useCallback,
   ReactNode,
 } from "react";
+import axios from "axios";
 
 export type UserRole = "PARKER" | "OPERATOR" | "ENFORCEMENT" | "ADMIN" | "GUEST";
 
-/** Admin sub-permission — only defined when role === "ADMIN". */
 export type AdminPermission =
   | "full_admin"
   | "events_admin"
@@ -16,17 +16,16 @@ export type AdminPermission =
   | "reporting_admin";
 
 type AuthState = {
-  token:           string | null;
   role:            UserRole | null;
   adminPermission: AdminPermission | null;
   isAuthenticated: boolean;
-  login: (token: string, role: UserRole, adminPermission?: string | null, refreshToken?: string | null) => void;
+  login: (role: UserRole, adminPermission?: string | null) => void;
   logout: () => void;
 };
 
+// Only non-sensitive metadata lives in localStorage.
+// Tokens are in HttpOnly cookies — JS never reads them.
 const STORAGE_KEYS = {
-  token:           "auth_token",
-  refreshToken:    "auth_refresh_token",
   role:            "auth_role",
   adminPermission: "auth_admin_permission",
 } as const;
@@ -37,25 +36,18 @@ const VALID_ADMIN_PERMS: AdminPermission[] = [
 ];
 
 function parseRole(value: string | null): UserRole | null {
-  if (value && (VALID_ROLES as string[]).includes(value)) {
-    return value as UserRole;
-  }
+  if (value && (VALID_ROLES as string[]).includes(value)) return value as UserRole;
   return null;
 }
 
 function parseAdminPerm(value: string | null): AdminPermission | null {
-  if (value && (VALID_ADMIN_PERMS as string[]).includes(value)) {
-    return value as AdminPermission;
-  }
+  if (value && (VALID_ADMIN_PERMS as string[]).includes(value)) return value as AdminPermission;
   return null;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(
-    () => localStorage.getItem(STORAGE_KEYS.token)
-  );
   const [role, setRole] = useState<UserRole | null>(
     () => parseRole(localStorage.getItem(STORAGE_KEYS.role))
   );
@@ -63,36 +55,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => parseAdminPerm(localStorage.getItem(STORAGE_KEYS.adminPermission))
   );
 
-  const login = useCallback((newToken: string, newRole: UserRole, newAdminPerm?: string | null, refreshToken?: string | null) => {
-    localStorage.setItem(STORAGE_KEYS.token, newToken);
+  const login = useCallback((newRole: UserRole, newAdminPerm?: string | null) => {
     localStorage.setItem(STORAGE_KEYS.role, newRole);
-    if (refreshToken) {
-      localStorage.setItem(STORAGE_KEYS.refreshToken, refreshToken);
-    }
     const perm = parseAdminPerm(newAdminPerm ?? null);
     if (perm) {
       localStorage.setItem(STORAGE_KEYS.adminPermission, perm);
     } else {
       localStorage.removeItem(STORAGE_KEYS.adminPermission);
     }
-    setToken(newToken);
     setRole(newRole);
     setAdminPermission(perm);
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEYS.token);
-    localStorage.removeItem(STORAGE_KEYS.refreshToken);
+  const logout = useCallback(async () => {
+    try {
+      // Ask the server to revoke the refresh token and clear auth cookies.
+      await axios.post("/api/auth/logout", {}, { withCredentials: true });
+    } catch {
+      // Even if the request fails, clear local state so the UI shows logged-out.
+    }
     localStorage.removeItem(STORAGE_KEYS.role);
     localStorage.removeItem(STORAGE_KEYS.adminPermission);
-    setToken(null);
     setRole(null);
     setAdminPermission(null);
   }, []);
 
   return (
     <AuthContext.Provider
-      value={{ token, role, adminPermission, isAuthenticated: !!token, login, logout }}
+      value={{ role, adminPermission, isAuthenticated: !!role, login, logout }}
     >
       {children}
     </AuthContext.Provider>

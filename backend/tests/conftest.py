@@ -85,11 +85,19 @@ def make_user(db):
 
 
 @pytest.fixture()
-def auth_headers(client):
-    """Factory fixture — returns Bearer auth headers for a given email/password."""
+def auth_headers(db):
+    """Factory fixture — generates a valid Bearer token directly for a DB user.
+
+    Bypasses the login endpoint so tests are decoupled from the auth response
+    format and don't consume rate-limit quota.
+    """
+    from app.models.user import User
+    from app.utils.security import create_token
+
     def _headers(email: str, password: str = "Test123!") -> dict:
-        resp = client.post("/auth/login", json={"email": email, "password": password})
-        assert resp.status_code == 200, f"Login failed for {email}: {resp.json()}"
-        return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+        user = db.query(User).filter(User.email == email).first()
+        assert user, f"User '{email}' not found — call make_user() first"
+        token = create_token({"sub": str(user.id), "role": user.role.value})
+        return {"Authorization": f"Bearer {token}"}
 
     return _headers

@@ -16,11 +16,10 @@ const ROLE_REDIRECTS: Record<UserRole, string> = {
 };
 
 type LoginResponse = {
-  access_token:           string;
-  refresh_token:          string | null;
   role:                   UserRole;
   terminated_by_operator: boolean;
   admin_permission:       string | null;
+  // Tokens are delivered as HttpOnly cookies — not present in this payload.
 };
 
 export default function Login() {
@@ -44,7 +43,7 @@ export default function Login() {
     try {
       const { data } = await api.post<LoginResponse>("/auth/login", { email, password });
 
-      login(data.access_token, data.role, data.admin_permission, data.refresh_token);
+      login(data.role, data.admin_permission);
 
       const destination = ROLE_REDIRECTS[data.role];
       if (!destination) {

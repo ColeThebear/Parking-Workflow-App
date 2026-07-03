@@ -35,3 +35,18 @@ class Transaction(Base):
     created_at      = Column(DateTime(timezone=True), default=_utcnow)
 
     balance_account = relationship("TokenBalance", back_populates="transactions")
+
+
+class RevokedToken(Base):
+    """SHA-256 hashes of revoked refresh tokens.
+
+    Inserted on logout; checked on every /auth/refresh call.
+    Rows whose expires_at has passed are safe to prune — the JWT itself
+    would be rejected by the signature check anyway.
+    """
+    __tablename__ = "revoked_tokens"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    token_hash = Column(String(64), unique=True, nullable=False, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    revoked_at = Column(DateTime(timezone=True), default=_utcnow)
