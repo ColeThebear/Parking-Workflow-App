@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
+    # ── Observability ─────────────────────────────────────────────
+    SENTRY_DSN: str = ""          # Empty = Sentry disabled (safe default for dev/test)
+    LOG_JSON: bool = True         # Structured JSON logs; set LOG_JSON=false for local dev
+    ENVIRONMENT: str = "development"
+
     @field_validator("SECRET_KEY")
     @classmethod
     def validate_secret_key(cls, v: str) -> str:

@@ -9,9 +9,20 @@ from slowapi.errors import RateLimitExceeded
 
 from .utils.rate_limit import limiter
 from .utils.exceptions import AppError, app_error_handler
-from .utils.logging_config import configure_logging, RequestLoggingMiddleware
+from .config import get_settings as _get_settings
+from .utils.logging_config import configure_logging, CorrelationIdMiddleware, RequestLoggingMiddleware
 
-configure_logging()
+_settings = _get_settings()
+configure_logging(json_logs=_settings.LOG_JSON)
+
+if _settings.SENTRY_DSN:
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn=_settings.SENTRY_DSN,
+        environment=_settings.ENVIRONMENT,
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+    )
 
 from .database import Base, engine
 from .models import user, parking, enforcement, vehicle, token, guest   # registers all models
@@ -189,6 +200,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Added last so it runs outermost — request_id is set before any other
+# middleware or route handler logs anything.
+app.add_middleware(CorrelationIdMiddleware)
 
 app.include_router(auth.router)
 app.include_router(parking_router.router)

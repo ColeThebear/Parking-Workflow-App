@@ -41,7 +41,7 @@ jobs:
         env:
           DATABASE_URL: postgresql+psycopg2://test:testpass@localhost:5432/test_db
           SECRET_KEY: ci-test-secret-key-that-is-at-least-thirty-two-characters
-          RATELIMIT_ENABLED: "0"
+          LOG_JSON: "false"
         run: |
           cd backend
           python -m pytest tests/ -v
