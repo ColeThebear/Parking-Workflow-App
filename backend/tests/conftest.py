@@ -58,3 +58,38 @@ def client(db):
     with TestClient(app, raise_server_exceptions=True) as test_client:
         yield test_client
     app.dependency_overrides.pop(get_db, None)
+
+
+# ── Shared test helpers ───────────────────────────────────────────────────────
+
+@pytest.fixture()
+def make_user(db):
+    """Factory fixture — creates a User row and returns it."""
+    from app.models.user import User
+    from app.utils.security import hash_password
+
+    def _make(email: str, role: str = "PARKER", password: str = "Test123!",
+              admin_permission: str | None = None) -> User:
+        user = User(
+            email=email,
+            password_hash=hash_password(password),
+            role=role,
+            admin_permission=admin_permission,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+
+    return _make
+
+
+@pytest.fixture()
+def auth_headers(client):
+    """Factory fixture — returns Bearer auth headers for a given email/password."""
+    def _headers(email: str, password: str = "Test123!") -> dict:
+        resp = client.post("/auth/login", json={"email": email, "password": password})
+        assert resp.status_code == 200, f"Login failed for {email}: {resp.json()}"
+        return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
+    return _headers
