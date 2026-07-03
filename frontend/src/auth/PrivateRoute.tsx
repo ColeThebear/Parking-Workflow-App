@@ -9,9 +9,9 @@ export const PrivateRoute = ({
   children: React.ReactElement;
   roles?: string[];
 }) => {
-  const { token, role } = useAuth();
+  const { isAuthenticated, role } = useAuth();
 
-  if (!token) return <Navigate to="/login" replace />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
 
   if (roles && role && !roles.includes(role)) {
     return <Navigate to="/unauthorized" replace />;
