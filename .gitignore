@@ -1,3 +1,6 @@
+# --- TLS Certificates (never commit private keys) ---
+nginx/certs/
+
 # --- System / IDE Files ---
 .DS_Store
 Thumbs.db

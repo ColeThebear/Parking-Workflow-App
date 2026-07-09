@@ -11,7 +11,7 @@ def test_login_success(client, db):
     db.add(user)
     db.commit()
 
-    response = client.post("/auth/login", json={
+    response = client.post("/v1/auth/login", json={
         "email": "testuser@test.com",
         "password": "testpass"
     })
@@ -24,7 +24,7 @@ def test_login_success(client, db):
 
 
 def test_seeded_account_login(client):
-    response = client.post("/auth/login", json={
+    response = client.post("/v1/auth/login", json={
         "email": "jsmith@suny.edu",
         "password": "Test123!",
     })
@@ -39,7 +39,7 @@ def test_login_sets_httponly_cookies(client, db):
         role="PARKER",
     ))
     db.commit()
-    response = client.post("/auth/login", json={
+    response = client.post("/v1/auth/login", json={
         "email": "cookie_check@test.com",
         "password": "Test123!",
     })
@@ -48,7 +48,7 @@ def test_login_sets_httponly_cookies(client, db):
 
 
 def test_login_failure(client):
-    response = client.post("/auth/login", json={
+    response = client.post("/v1/auth/login", json={
         "email": "nobody@test.com",
         "password": "wrongpassword"
     })

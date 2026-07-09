@@ -3,7 +3,7 @@ def test_student_start_parking(client, make_user, auth_headers):
     headers = auth_headers("student_flow@test.com")
 
     response = client.post(
-        "/student/start",
+        "/v1/student/start",
         headers=headers,
         json={"plate": "STU001", "zone": "A1"},
     )

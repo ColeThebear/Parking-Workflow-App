@@ -2,7 +2,7 @@ import logging
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -205,12 +205,14 @@ app.add_middleware(
 # middleware or route handler logs anything.
 app.add_middleware(CorrelationIdMiddleware)
 
-app.include_router(auth.router)
-app.include_router(parking_router.router)
-app.include_router(enforcement_router.router)
-app.include_router(operator.router)
-app.include_router(admin.router)
-app.include_router(guest_router.router)
+_v1 = APIRouter(prefix="/v1")
+_v1.include_router(auth.router)
+_v1.include_router(parking_router.router)
+_v1.include_router(enforcement_router.router)
+_v1.include_router(operator.router)
+_v1.include_router(admin.router)
+_v1.include_router(guest_router.router)
+app.include_router(_v1)
 
 
 @app.get("/", tags=["health"])

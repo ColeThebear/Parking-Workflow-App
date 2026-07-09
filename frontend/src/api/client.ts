@@ -4,7 +4,7 @@ import type { AxiosError, InternalAxiosRequestConfig } from "axios";
 export type { AxiosError };
 
 const api = axios.create({
-  baseURL: "/api",
+  baseURL: "/api/v1",
   headers: { "Content-Type": "application/json" },
   // Required so the browser sends HttpOnly auth cookies on every request.
   withCredentials: true,
@@ -41,7 +41,7 @@ api.interceptors.response.use(
       isRefreshing = true;
       try {
         // Browser sends the refresh_token cookie automatically — no body needed.
-        await axios.post("/api/auth/refresh", {}, { withCredentials: true });
+        await axios.post("/api/v1/auth/refresh", {}, { withCredentials: true });
         refreshQueue.forEach((cb) => cb(true));
         refreshQueue = [];
         return api(original);

@@ -2,7 +2,7 @@
 
 
 def test_guest_register(client):
-    resp = client.post("/auth/guest-register", json={
+    resp = client.post("/v1/auth/guest-register", json={
         "email": "guest_new@test.com",
         "name": "Guest User",
         "password": "GuestPass1!",
@@ -15,13 +15,13 @@ def test_guest_register(client):
 
 
 def test_guest_login_after_register(client):
-    client.post("/auth/guest-register", json={
+    client.post("/v1/auth/guest-register", json={
         "email": "guest_login@test.com",
         "name": "Guest Login",
         "password": "GuestPass1!",
         "license_plate": "GST002",
     })
-    resp = client.post("/auth/login", json={
+    resp = client.post("/v1/auth/login", json={
         "email": "guest_login@test.com",
         "password": "GuestPass1!",
     })
@@ -36,13 +36,13 @@ def test_guest_duplicate_email_rejected(client):
         "password": "GuestPass1!",
         "license_plate": "GST003",
     }
-    client.post("/auth/guest-register", json=payload)
-    resp = client.post("/auth/guest-register", json=payload)
+    client.post("/v1/auth/guest-register", json=payload)
+    resp = client.post("/v1/auth/guest-register", json=payload)
     assert resp.status_code == 400
 
 
 def test_guest_register_without_plate(client):
-    resp = client.post("/auth/guest-register", json={
+    resp = client.post("/v1/auth/guest-register", json={
         "email": "guest_noplate@test.com",
         "name": "No Plate Guest",
         "password": "GuestPass1!",

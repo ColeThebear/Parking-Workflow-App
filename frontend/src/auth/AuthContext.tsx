@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     try {
       // Ask the server to revoke the refresh token and clear auth cookies.
-      await axios.post("/api/auth/logout", {}, { withCredentials: true });
+      await axios.post("/api/v1/auth/logout", {}, { withCredentials: true });
     } catch {
       // Even if the request fails, clear local state so the UI shows logged-out.
     }

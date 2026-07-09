@@ -19,7 +19,7 @@ def test_enforcement_lookup_active_parking(client, db, make_user, auth_headers):
     db.commit()
 
     headers = auth_headers("enforcer_enforcement@test.com")
-    response = client.get("/enforcement/lookup?plate=ENF001", headers=headers)
+    response = client.get("/v1/enforcement/lookup?plate=ENF001", headers=headers)
 
     assert response.status_code == 200
     data = response.json()
