@@ -10,8 +10,23 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// No Authorization header interceptor — tokens live in HttpOnly cookies
-// that the browser sends automatically. JS never touches the raw token.
+// Read the non-HttpOnly csrf_token cookie that the backend sets on every response.
+function getCsrfToken(): string {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
+// Attach CSRF token to every state-changing request (browser cookie-auth flow).
+// Bearer-authenticated requests (API clients) don't need this — the backend
+// skips CSRF validation when an Authorization header is present.
+api.interceptors.request.use((config) => {
+  const method = config.method?.toLowerCase() ?? "";
+  if (["post", "put", "patch", "delete"].includes(method)) {
+    const token = getCsrfToken();
+    if (token) config.headers["X-CSRF-Token"] = token;
+  }
+  return config;
+});
 
 let isRefreshing = false;
 let refreshQueue: ((ok: boolean) => void)[] = [];
@@ -41,7 +56,10 @@ api.interceptors.response.use(
       isRefreshing = true;
       try {
         // Browser sends the refresh_token cookie automatically — no body needed.
-        await axios.post("/api/v1/auth/refresh", {}, { withCredentials: true });
+        await axios.post("/api/v1/auth/refresh", {}, {
+          withCredentials: true,
+          headers: { "X-CSRF-Token": getCsrfToken() },
+        });
         refreshQueue.forEach((cb) => cb(true));
         refreshQueue = [];
         return api(original);

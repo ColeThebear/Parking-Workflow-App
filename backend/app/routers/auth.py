@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import secrets
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -76,6 +77,25 @@ def _issue_auth_response(
         admin_permission=user.admin_permission,
         **extra_fields,
     )
+
+
+# ── CSRF token ────────────────────────────────────────────────────────────────
+
+@router.get("/csrf-token")
+def csrf_token(request: Request, response: Response):
+    """Return (and set) the CSRF cookie so the browser has a token before its
+    first state-changing request.  Safe to call on every app mount."""
+    from ..utils.csrf import CSRF_COOKIE, _SECURE_COOKIE
+    token = request.cookies.get(CSRF_COOKIE) or secrets.token_urlsafe(32)
+    response.set_cookie(
+        CSRF_COOKIE, token,
+        httponly=False,
+        secure=_SECURE_COOKIE,
+        samesite="lax",
+        max_age=86400,
+        path="/",
+    )
+    return {"csrf_token": token}
 
 
 # ── Login ─────────────────────────────────────────────────────────────────────

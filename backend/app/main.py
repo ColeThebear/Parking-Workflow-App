@@ -11,6 +11,7 @@ from .utils.rate_limit import limiter
 from .utils.exceptions import AppError, app_error_handler
 from .config import get_settings as _get_settings
 from .utils.logging_config import configure_logging, CorrelationIdMiddleware, RequestLoggingMiddleware
+from .utils.csrf import CSRFMiddleware
 
 _settings = _get_settings()
 configure_logging(json_logs=_settings.LOG_JSON)
@@ -181,6 +182,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_exception_handler(AppError, app_error_handler)
 app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(CSRFMiddleware)
 
 
 @app.middleware("http")

@@ -74,7 +74,8 @@ def test_session_history(client, make_user, auth_headers):
 
 def test_unauthenticated_start_rejected(client):
     resp = client.post("/v1/student/start", json={"plate": "NOAUTH", "zone": "Z9"})
-    assert resp.status_code == 401
+    # CSRF middleware (403) fires before the auth check (401) for cookieless requests.
+    assert resp.status_code in (401, 403)
 
 
 def test_plate_normalised_to_uppercase(client, make_user, auth_headers):

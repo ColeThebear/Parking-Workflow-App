@@ -3,9 +3,15 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
   ReactNode,
 } from "react";
 import axios from "axios";
+
+function getCsrfToken(): string {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
 
 export type UserRole = "PARKER" | "OPERATOR" | "ENFORCEMENT" | "ADMIN" | "GUEST";
 
@@ -67,10 +73,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAdminPermission(perm);
   }, []);
 
+  // Ensure the CSRF cookie exists whenever the user is authenticated.
+  // The backend sets it on any response, but if the user has a session from
+  // a previous visit (role in localStorage) there may have been no backend
+  // request yet in this browser session.
+  useEffect(() => {
+    if (role) {
+      axios
+        .get("/api/v1/auth/csrf-token", { withCredentials: true })
+        .catch(() => {});
+    }
+  }, [role]);
+
   const logout = useCallback(async () => {
     try {
-      // Ask the server to revoke the refresh token and clear auth cookies.
-      await axios.post("/api/v1/auth/logout", {}, { withCredentials: true });
+      await axios.post("/api/v1/auth/logout", {}, {
+        withCredentials: true,
+        headers: { "X-CSRF-Token": getCsrfToken() },
+      });
     } catch {
       // Even if the request fails, clear local state so the UI shows logged-out.
     }
